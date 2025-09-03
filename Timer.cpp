@@ -6,7 +6,7 @@ Timer::Timer()
 	LastTime = StartTime;
 }
 
-const double Timer::GetTotalTime()
+double Timer::GetTotalTime()
 {
 	
 	LastTime = std::chrono::high_resolution_clock::now();

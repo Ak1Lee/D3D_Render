@@ -7,9 +7,8 @@ class Timer
 public:
 	Timer();
 	Timer(const Timer&) = delete;
-	Timer& operator=(const Timer&) = delete;
 
-	const double GetTotalTime(); // in seconds
+	double GetTotalTime(); // in seconds
 
 	double GetDeltaTime() const; // in seconds
 

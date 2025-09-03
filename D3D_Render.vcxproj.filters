@@ -27,6 +27,12 @@
     <ClCompile Include="Timer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="render.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="dxUtils.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -36,6 +42,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="render.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="dxUtils.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
