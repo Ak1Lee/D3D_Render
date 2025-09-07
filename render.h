@@ -8,9 +8,20 @@
 #include <dxgi1_6.h>
 #include <vector>
 #include "dxUtils.h"
+#include "MathHelper.h"
+
+#include "camera.h"
+
 constexpr unsigned int FrameBufferCount = 2;
 inline unsigned int Width = 800;
 inline unsigned int Height = 600;
+
+// 常量缓冲区结构
+struct ObjectConstants
+{
+	DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+};
+
 
 class Device
 {
@@ -26,6 +37,16 @@ public:
 private:
 	Microsoft::WRL::ComPtr<IDXGIFactory4> DxgiFactory;
 	Microsoft::WRL::ComPtr<ID3D12Device> D3DDevice;
+};
+
+class MeshBase
+{
+public:
+	MeshBase() = default;
+	~MeshBase() = default;
+
+protected:
+
 };
 
 class RenderableItem
@@ -45,6 +66,10 @@ public:
 
 private:
 	std::vector<Vertex> VertexList;
+
+	// 添加世界矩阵
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexDefaultBuffer;
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexUploadBuffer;
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView = {};
@@ -55,10 +80,58 @@ private:
 
 };
 
+class BoxMesh
+{
+	public:
+	BoxMesh() = default;
+	~BoxMesh() = default;
+
+	void InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* commandList);
+
+	D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const { return VertexBufferView; }
+	D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const { return IndexBufferView; }
+
+	ID3D12Resource* GetVertexDefaultBuffer() const { return VertexDefaultBuffer.Get(); }
+
+	UINT GetVertexCount() const { return VertexCount; }
+
+	UINT GetIndexCount() const { return IndexCount; }
+
+	DirectX::XMMATRIX GetWorldMatrix();
+
+	DirectX::XMMATRIX CalMVPMatrix(DirectX::XMMATRIX ViewProj);
+
+
+private:
+	std::vector<Vertex> VertexList;
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexDefaultBuffer;
+	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU;
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexUploadBuffer;
+
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexDefaultBuffer;
+	Microsoft::WRL::ComPtr<ID3DBlob> IndexBufferCPU;
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexUploadBuffer;
+
+	D3D12_VERTEX_BUFFER_VIEW VertexBufferView = {};
+	D3D12_INDEX_BUFFER_VIEW IndexBufferView = {};
+
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+
+
+	unsigned int VertexBufferSize = 0;
+	unsigned int VertexCount = 0;
+	unsigned int IndexCount = 0;
+};
+
 class DXRender
 {
 public:
 	void InitDX(HWND hWnd);
+
+	void ExecuteCommandAndWaitForComplete();
+
+	void InitViewportAndScissor();
 
 	void InitHandleSize();
 
@@ -68,6 +141,8 @@ public:
 
 	void InitRenderTargetHeapAndView();
 
+	void CreateConstantBufferView();
+
 	void InitRootSignature();
 
 	void CompileShader();
@@ -76,6 +151,8 @@ public:
 
 	void InitPSO();
 
+	void CreateFence();
+
 	void Draw();
 
 
@@ -83,6 +160,8 @@ private:
 	
 
 	Device DxDevice;
+
+	Camera MainCamera;
 
 
 	Microsoft::WRL::ComPtr<ID3D12Fence> Fence;
@@ -102,6 +181,14 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> RenderTargets[FrameBufferCount];
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
 	Microsoft::WRL::ComPtr<ID3DBlob> Signature;
+
+	//Constant Buffer View Heap
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ConstantBufferViewHeap;
+	Microsoft::WRL::ComPtr<ID3D12Resource> ObjectConstantBuffer;
+	UINT8* ConstantBufferMappedData = nullptr;
+	// Constant Buffer
+
+
 	// Shader Compile
 	Microsoft::WRL::ComPtr<ID3DBlob> VS;
 	Microsoft::WRL::ComPtr<ID3DBlob> PS;
@@ -120,6 +207,8 @@ private:
 
 
 	RenderableItem Triangle;
+
+	BoxMesh Box;
 
 };
 
