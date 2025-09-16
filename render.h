@@ -43,10 +43,49 @@ class MeshBase
 {
 public:
 	MeshBase() = default;
+	MeshBase(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) {};
 	~MeshBase() = default;
-
+	virtual void InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) = 0;
+	//virtual void InitRenderResource() = 0;
+	virtual D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const { return VertexBufferView;};
+	virtual D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const { return IndexBufferView; };
+	virtual UINT GetVertexCount() const { return VertexCount; };
+	virtual UINT GetIndexCount() const { return IndexCount; };
+	virtual DirectX::XMMATRIX GetWorldMatrix() { return DirectX::XMLoadFloat4x4(&World); };
+	virtual DirectX::XMMATRIX CalMVPMatrix(DirectX::XMMATRIX ViewProj);
 protected:
 
+	DirectX::XMFLOAT3 Pos = { 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 Angle = { 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 Scale = { 1.0f, 1.0f, 1.0f };
+
+	std::vector<Vertex> VertexList;
+	std::vector<std::uint16_t> IndiceList;
+
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexDefaultBufferGPU;
+	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU;
+	Microsoft::WRL::ComPtr<ID3D12Resource> VertexUploadBuffer;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexDefaultBufferGPU;
+	Microsoft::WRL::ComPtr<ID3DBlob> IndexBufferCPU;
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexUploadBuffer;
+
+	D3D12_VERTEX_BUFFER_VIEW VertexBufferView = {};
+	D3D12_INDEX_BUFFER_VIEW IndexBufferView = {};
+
+	unsigned int VertexBufferSize = 0;
+	unsigned int VertexCount = 0;
+	unsigned int IndexCount = 0;
+};
+
+class Box : public MeshBase
+{
+public:
+	Box() = default;
+	Box(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList);
+
+	void InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) override;
 };
 
 class RenderableItem
@@ -67,16 +106,24 @@ public:
 private:
 	std::vector<Vertex> VertexList;
 
-	// ÃÌº” ¿ΩÁæÿ’Û
+	// Model Matrix
 	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexDefaultBuffer;
+	Microsoft::WRL::ComPtr<ID3DBlob> VertexBufferCPU;
 	Microsoft::WRL::ComPtr<ID3D12Resource> VertexUploadBuffer;
+
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexDefaultBuffer;
+	Microsoft::WRL::ComPtr<ID3DBlob> IndexBufferCPU;
+	Microsoft::WRL::ComPtr<ID3D12Resource> IndexUploadBuffer;
+
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView = {};
+	D3D12_INDEX_BUFFER_VIEW IndexBufferView = {};
 
 	unsigned int VertexBufferSize = 0;
 	unsigned int VertexCount = 0;
-
+	unsigned int IndexCount = 0;
 
 };
 
@@ -155,6 +202,12 @@ public:
 
 	void Draw();
 
+	~DXRender();
+
+	DXRender();
+
+	Camera& GetMainCamera() { return MainCamera; }
+
 
 private:
 	
@@ -208,7 +261,9 @@ private:
 
 	RenderableItem Triangle;
 
-	BoxMesh Box;
+	BoxMesh BoxShape;
 
+	MeshBase* PtrMesh = nullptr;
+	
 };
 
