@@ -7,6 +7,8 @@
 #include <DirectXColors.h>
 
 #include "Timer.h"
+#include "DXShader.h"
+#include "DXRootSignature.h"
 
 
 
@@ -92,10 +94,6 @@ void DXRender::InitDX(HWND hWnd)
     }
 #endif
 
-
-
-
-    DxDevice.Init();
     InitHandleSize();
     InitCommand();
     InitSwapChain(hWnd);
@@ -114,20 +112,20 @@ void DXRender::InitDX(HWND hWnd)
     InitViewportAndScissor();
     InitDepthStencilBuffer();
 
-    // Triangle.InitVertexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
-    // BoxShape.InitVertexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
+    // Triangle.InitVertexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+    // BoxShape.InitVertexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 
     for (int i = 0; i <= 5; ++i)
     {
         auto BoxPtr = new Box();
         BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
-        BoxPtr->InitVertexBufferAndIndexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
-        BoxPtr->InitObjectConstantBuffer(DxDevice.GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
+        BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
         MeshList.push_back(BoxPtr);
     }
 
     PtrMesh = new Box();
-    PtrMesh->InitVertexBufferAndIndexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
+    PtrMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 
     // 执行初始化命令
     ExecuteCommandAndWaitForComplete();
@@ -168,9 +166,9 @@ void DXRender::InitViewportAndScissor()
 
 void DXRender::InitHandleSize()
 {
-    RtvDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    DsvDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-    SrvUavDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    RtvDescriptorSize = Device::GetInstance().GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    DsvDescriptorSize = Device::GetInstance().GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    SrvUavDescriptorSize = Device::GetInstance().GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void DXRender::InitCommand()
@@ -179,9 +177,9 @@ void DXRender::InitCommand()
     D3D12_COMMAND_QUEUE_DESC QueueDesc = {};
     QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandQueue(&QueueDesc, IID_PPV_ARGS(&CommandQueue)));
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CommandAllocator)));
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator.Get(), nullptr, IID_PPV_ARGS(CommandList.GetAddressOf())));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommandQueue(&QueueDesc, IID_PPV_ARGS(&CommandQueue)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CommandAllocator)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator.Get(), nullptr, IID_PPV_ARGS(CommandList.GetAddressOf())));
     CommandList->Close();
 }
 
@@ -196,7 +194,7 @@ void DXRender::InitSwapChain(HWND hWnd)
     SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     SwapChainDesc.SampleDesc.Count = 1;
 
-    ThrowIfFailed(DxDevice.GetDxgiFactory()->CreateSwapChainForHwnd(
+    ThrowIfFailed(Device::GetInstance().GetDxgiFactory()->CreateSwapChainForHwnd(
         CommandQueue.Get(),
         hWnd,
         &SwapChainDesc,
@@ -215,7 +213,7 @@ void DXRender::InitRenderTargetHeapAndView()
     RtvHeapDesc.NumDescriptors = FrameBufferCount;
     RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     RtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateDescriptorHeap(
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(
         &RtvHeapDesc, IID_PPV_ARGS(&RtvHeap)
     ));
     // RTV Create 
@@ -223,7 +221,7 @@ void DXRender::InitRenderTargetHeapAndView()
     for (unsigned int i = 0; i < FrameBufferCount; i++)
     {
         ThrowIfFailed(SwapChain3->GetBuffer(i, IID_PPV_ARGS(&RenderTargets[i])));
-        DxDevice.GetD3DDevice()->CreateRenderTargetView(RenderTargets[i].Get(), nullptr, RtvHandle);
+        Device::GetInstance().GetD3DDevice()->CreateRenderTargetView(RenderTargets[i].Get(), nullptr, RtvHandle);
         RtvHandle.ptr += RtvDescriptorSize;
     }
 
@@ -235,14 +233,14 @@ void DXRender::CreateConstantBufferView()
     ConstantBufferViewHeapDesc.NumDescriptors = 20;
     ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
 
     // 创建常量缓冲区 - 大小必须是256字节对齐 转移到 MeshBase
  //   const UINT constantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
 
     //CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     //CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
- //   ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,
+ //   ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,
  //       D3D12_RESOURCE_STATE_GENERIC_READ,
  //       nullptr,
  //       IID_PPV_ARGS(&ObjectConstantBuffer)));
@@ -254,37 +252,24 @@ void DXRender::CreateConstantBufferView()
  //   D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
  //   cbvDesc.BufferLocation = ObjectConstantBuffer->GetGPUVirtualAddress();
  //   cbvDesc.SizeInBytes = constantBufferSize; // 必须是256字节对齐
-    //DxDevice.GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
+    //Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
 
 }
 
 void DXRender::InitRootSignature()
 {
     // 跟参数
-    CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+	DXRootSignature rootSigBuilder;
+	rootSigBuilder.AddCBVDescriptorTable(0, D3D12_SHADER_VISIBILITY_ALL);
+    RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
-    CD3DX12_DESCRIPTOR_RANGE ConstantBufferViewTable;
-    ConstantBufferViewTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-    slotRootParameter[0].InitAsDescriptorTable(1, &ConstantBufferViewTable, D3D12_SHADER_VISIBILITY_ALL);
-
-
-    CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
-    RootSignatureDesc.Init(1, slotRootParameter, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-    ThrowIfFailed(D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &Signature, nullptr));
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateRootSignature(0, Signature->GetBufferPointer(), Signature->GetBufferSize(), IID_PPV_ARGS(&RootSignature)));
 }
 
 void DXRender::CompileShader()
 {
-#if defined(_DEBUG)
-    UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-    UINT compileFlags = 0;
-#endif
-    TCHAR shaderPath[] = _T("Shaders.hlsl");
-    ThrowIfFailed(D3DCompileFromFile(shaderPath, nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &VS, nullptr));
-    ThrowIfFailed(D3DCompileFromFile(shaderPath, nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &PS, nullptr));
 
+	DXShaderManager::GetInstance().CreateOrFindShader(L"TestVS", L"Shaders.hlsl", "VSMain", "vs_5_0");
+    DXShaderManager::GetInstance().CreateOrFindShader(L"TestPS", L"Shaders.hlsl", "PSMain", "ps_5_0");
 
 }
 
@@ -311,8 +296,15 @@ void DXRender::InitPSO()
     D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc = {};
     PsoDesc.InputLayout = { inputLayout, _countof(inputLayout) };
     PsoDesc.pRootSignature = RootSignature.Get();
-    PsoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
-    PsoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
+    //PsoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
+    //PsoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
+
+	auto TESTVS = DXShaderManager::GetInstance().GetShaderByName(L"TestVS")->GetBytecode();
+	auto TESTPS = DXShaderManager::GetInstance().GetShaderByName(L"TestPS")->GetBytecode();
+
+	PsoDesc.VS = { reinterpret_cast<BYTE*>(TESTVS->GetBufferPointer()), TESTVS->GetBufferSize()};
+	PsoDesc.PS = { reinterpret_cast<BYTE*>(TESTPS->GetBufferPointer()), TESTPS->GetBufferSize() };
+
     PsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     PsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     //PsoDesc.DepthStencilState.DepthEnable = TRUE;
@@ -323,13 +315,13 @@ void DXRender::InitPSO()
     PsoDesc.NumRenderTargets = 1;
     PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     PsoDesc.SampleDesc.Count = 1;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&PipelineState)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&PipelineState)));
 
 }
 
 void DXRender::CreateFence()
 {
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence)));
 }
 
 
@@ -674,13 +666,13 @@ void DXRender::Draw()
         Timer::GetTimerInstance().StartNamedTimer("Draw");
 
         Timer::GetTimerInstance().StartNamedTimer("UpdateCB");
+
         {
             // 更新常量缓冲区
             auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
             ObjectConstants objConstants;
             DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
             MeshElement->UpdateObjectConstantBuffer(objConstants);
-            // memcpy(ConstantBufferMappedData, &objConstants, sizeof(objConstants));
         }
         Timer::GetTimerInstance().StopNamedTimer("UpdateCB");
 
@@ -741,7 +733,7 @@ void DXRender::InitDepthStencilBuffer()
     DsvHeapDesc.NumDescriptors = 1;
 	DsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     DsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateDescriptorHeap(&DsvHeapDesc, IID_PPV_ARGS(&DsvHeap)));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&DsvHeapDesc, IID_PPV_ARGS(&DsvHeap)));
 
     DXGI_FORMAT DepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
@@ -759,7 +751,7 @@ void DXRender::InitDepthStencilBuffer()
         1  // 1 mipmap level
     );
     DepthResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommittedResource(
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
         &DepthHeapProps,
         D3D12_HEAP_FLAG_NONE,
         &DepthResourceDesc,
@@ -773,7 +765,7 @@ void DXRender::InitDepthStencilBuffer()
     dsv.Flags = D3D12_DSV_FLAG_NONE;
 
     D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
-    DxDevice.GetD3DDevice()->CreateDepthStencilView(DepthStencilBuffer.Get(), &dsv, DsvHandle);
+    Device::GetInstance().GetD3DDevice()->CreateDepthStencilView(DepthStencilBuffer.Get(), &dsv, DsvHandle);
 	DepthStencilBuffer->SetName(L"Depth Stencil Buffer");
 }
 // DepthStencilBuffer End

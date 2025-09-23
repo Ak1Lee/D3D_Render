@@ -36,6 +36,18 @@
     <ClCompile Include="camera.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="DXPSOManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DXMaterial.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DXShader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DXRootSignature.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -51,6 +63,21 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="camera.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXMaterialManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXMaterial.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXPSOManager.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXShader.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXRootSignature.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,3 +1,4 @@
+
 #include "dxUtils.h"
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
@@ -7,7 +8,12 @@ DxException::DxException(HRESULT hr, const std::wstring& functionName, const std
     LineNumber(lineNumber)
 {
 }
-
+std::wstring AnsiToWString(const std::string& str)
+{
+    WCHAR buffer[512];
+    MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, buffer, 512);
+    return std::wstring(buffer);
+}
 std::wstring DxException::ToString() const
 {
     // »ñÈ¡´íÎóÂëµÄ×Ö·û´®ÃèÊö

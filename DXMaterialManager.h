@@ -1,0 +1,6 @@
+class DXMaterial;
+
+class DXMaterialManager
+{
+
+};
