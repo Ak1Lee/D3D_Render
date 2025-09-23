@@ -267,6 +267,12 @@ private:
     UINT8* ConstantBufferMappedData = nullptr;
     // Constant Buffer
 
+	// DepthStencilBuffer
+	Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
+	void InitDepthStencilBuffer();
+	// DepthStencilBuffer End
+
     // Shader Compile
     Microsoft::WRL::ComPtr<ID3DBlob> VS;
     Microsoft::WRL::ComPtr<ID3DBlob> PS;
