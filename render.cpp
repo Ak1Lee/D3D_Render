@@ -54,7 +54,7 @@ LRESULT CALLBACK GlobalWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam
 DXRender& DXRender::GetInstance()
 {
     static DXRender instance;
-	return instance;
+    return instance;
 }
 
 void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
@@ -65,7 +65,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     //wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"MyWindowClass";
-	wc.lpfnWndProc = GlobalWndProc;
+    wc.lpfnWndProc = GlobalWndProc;
     RegisterClass(&wc);
 
     // 创建窗口
@@ -95,7 +95,7 @@ void DXRender::InitDX(HWND hWnd)
 
 
 
-	DxDevice.Init();
+    DxDevice.Init();
     InitHandleSize();
     InitCommand();
     InitSwapChain(hWnd);
@@ -108,24 +108,24 @@ void DXRender::InitDX(HWND hWnd)
     CreateFence();
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
 
-	CreateConstantBufferView();
+    CreateConstantBufferView();
 
     // VIEWPORT and SCISSOR
     InitViewportAndScissor();
 
     // Triangle.InitVertexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
-	// BoxShape.InitVertexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
+    // BoxShape.InitVertexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
 
     for (int i = 0; i <= 5; ++i)
     {
         auto BoxPtr = new Box();
-		BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
-		BoxPtr->InitVertexBufferAndIndexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
-		BoxPtr->InitObjectConstantBuffer(DxDevice.GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
+        BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
+        BoxPtr->InitVertexBufferAndIndexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
+        BoxPtr->InitObjectConstantBuffer(DxDevice.GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
         MeshList.push_back(BoxPtr);
     }
-	
-	PtrMesh = new Box();
+
+    PtrMesh = new Box();
     PtrMesh->InitVertexBufferAndIndexBuffer(DxDevice.GetD3DDevice(), CommandList.Get());
 
     // 执行初始化命令
@@ -169,7 +169,7 @@ void DXRender::InitHandleSize()
 {
     RtvDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     DsvDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-	SrvUavDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    SrvUavDescriptorSize = DxDevice.GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void DXRender::InitCommand()
@@ -181,7 +181,7 @@ void DXRender::InitCommand()
     ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandQueue(&QueueDesc, IID_PPV_ARGS(&CommandQueue)));
     ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CommandAllocator)));
     ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocator.Get(), nullptr, IID_PPV_ARGS(CommandList.GetAddressOf())));
-	CommandList->Close();
+    CommandList->Close();
 }
 
 void DXRender::InitSwapChain(HWND hWnd)
@@ -194,7 +194,7 @@ void DXRender::InitSwapChain(HWND hWnd)
     SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     SwapChainDesc.SampleDesc.Count = 1;
-   
+
     ThrowIfFailed(DxDevice.GetDxgiFactory()->CreateSwapChainForHwnd(
         CommandQueue.Get(),
         hWnd,
@@ -204,7 +204,7 @@ void DXRender::InitSwapChain(HWND hWnd)
         &SwapChain1
     ));
     ThrowIfFailed(SwapChain1.As(&SwapChain3));
-	CurrentFrameIdx = SwapChain3->GetCurrentBackBufferIndex();
+    CurrentFrameIdx = SwapChain3->GetCurrentBackBufferIndex();
 }
 
 void DXRender::InitRenderTargetHeapAndView()
@@ -230,17 +230,17 @@ void DXRender::InitRenderTargetHeapAndView()
 
 void DXRender::CreateConstantBufferView()
 {
-	D3D12_DESCRIPTOR_HEAP_DESC ConstantBufferViewHeapDesc = {};
-	ConstantBufferViewHeapDesc.NumDescriptors = 20;
-	ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	ThrowIfFailed(DxDevice.GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
+    D3D12_DESCRIPTOR_HEAP_DESC ConstantBufferViewHeapDesc = {};
+    ConstantBufferViewHeapDesc.NumDescriptors = 20;
+    ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    ThrowIfFailed(DxDevice.GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
 
-	// 创建常量缓冲区 - 大小必须是256字节对齐 转移到 MeshBase
+    // 创建常量缓冲区 - 大小必须是256字节对齐 转移到 MeshBase
  //   const UINT constantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
 
-	//CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	//CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
+    //CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    //CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
  //   ThrowIfFailed(DxDevice.GetD3DDevice()->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,
  //       D3D12_RESOURCE_STATE_GENERIC_READ,
  //       nullptr,
@@ -253,18 +253,18 @@ void DXRender::CreateConstantBufferView()
  //   D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
  //   cbvDesc.BufferLocation = ObjectConstantBuffer->GetGPUVirtualAddress();
  //   cbvDesc.SizeInBytes = constantBufferSize; // 必须是256字节对齐
-	//DxDevice.GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
+    //DxDevice.GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
 
 }
 
 void DXRender::InitRootSignature()
 {
     // 跟参数
-	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
-	
+    CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
     CD3DX12_DESCRIPTOR_RANGE ConstantBufferViewTable;
-	ConstantBufferViewTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-	slotRootParameter[0].InitAsDescriptorTable(1, &ConstantBufferViewTable, D3D12_SHADER_VISIBILITY_ALL);
+    ConstantBufferViewTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+    slotRootParameter[0].InitAsDescriptorTable(1, &ConstantBufferViewTable, D3D12_SHADER_VISIBILITY_ALL);
 
 
     CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
@@ -315,7 +315,7 @@ void DXRender::InitPSO()
     PsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     PsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     //PsoDesc.DepthStencilState.DepthEnable = TRUE;
-	PsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    PsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     PsoDesc.SampleMask = UINT_MAX;
     PsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     PsoDesc.NumRenderTargets = 1;
@@ -347,7 +347,7 @@ void RenderableItem::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsComman
     // 创建默认堆Default Heap
     CD3DX12_HEAP_PROPERTIES DefaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC DefaultBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);
-    
+
     ThrowIfFailed(device->CreateCommittedResource(
         &DefaultHeapProps,
         D3D12_HEAP_FLAG_NONE,
@@ -457,18 +457,18 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         4, 3, 7
     };
 
-	VertexCount = VertexList.size();
-	UINT VertexBufferSize = static_cast<UINT>(VertexList.size() * sizeof(Vertex));
-	IndexCount = IndiceList.size();
-	UINT IndexBufferSize = static_cast<UINT>(IndiceList.size() * sizeof(std::uint16_t));
+    VertexCount = VertexList.size();
+    UINT VertexBufferSize = static_cast<UINT>(VertexList.size() * sizeof(Vertex));
+    IndexCount = IndiceList.size();
+    UINT IndexBufferSize = static_cast<UINT>(IndiceList.size() * sizeof(std::uint16_t));
 
     /*************************************VBV********************************/
     // 创建CPU副本
-	ThrowIfFailed(D3DCreateBlob(VertexBufferSize, &VertexBufferCPU));
-	memcpy(VertexBufferCPU->GetBufferPointer(), VertexList.data(), VertexBufferSize);
+    ThrowIfFailed(D3DCreateBlob(VertexBufferSize, &VertexBufferCPU));
+    memcpy(VertexBufferCPU->GetBufferPointer(), VertexList.data(), VertexBufferSize);
 
     // 创建默认堆Default Heap
-	CD3DX12_HEAP_PROPERTIES VertexDefaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_HEAP_PROPERTIES VertexDefaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_RESOURCE_DESC VertexDefaultHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexBufferSize);;
 
     device->CreateCommittedResource(
@@ -478,10 +478,10 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         D3D12_RESOURCE_STATE_COMMON, // 初始状态：准备接收复制的数据
         nullptr,
         IID_PPV_ARGS(&VertexDefaultBuffer)
-	);
+    );
 
-	// 创建 Upload Heap 中的临时缓冲区
-	CD3DX12_HEAP_PROPERTIES VertexUploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+    // 创建 Upload Heap 中的临时缓冲区
+    CD3DX12_HEAP_PROPERTIES VertexUploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
     device->CreateCommittedResource(
         &VertexUploadHeapProps,
         D3D12_HEAP_FLAG_NONE,
@@ -489,9 +489,9 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
         IID_PPV_ARGS(&VertexUploadBuffer)
-	);
+    );
 
-	// 顶点数据->upload
+    // 顶点数据->upload
     UINT8* VertexDataBegin = nullptr;
     CD3DX12_RANGE readRange(0, 0);
     // 映射
@@ -500,7 +500,7 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
     memcpy(VertexDataBegin, VertexList.data(), VertexBufferSize);
     VertexUploadBuffer->Unmap(0, nullptr);
 
-	//upload-> default
+    //upload-> default
     // 添加转换到COPY_DEST状态的Barrier
     CD3DX12_RESOURCE_BARRIER PreCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
         VertexDefaultBuffer.Get(),
@@ -515,25 +515,25 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         0,
         VertexBufferSize
     );
-	// DefaultBuffer 从 COPY_DEST 到 VERTEX_AND_CONSTANT_BUFFER
+    // DefaultBuffer 从 COPY_DEST 到 VERTEX_AND_CONSTANT_BUFFER
     CD3DX12_RESOURCE_BARRIER PostCopyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
         VertexDefaultBuffer.Get(),
         D3D12_RESOURCE_STATE_COPY_DEST,
         D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER
     );
-	CommandList->ResourceBarrier(1, &PostCopyBarrier);
+    CommandList->ResourceBarrier(1, &PostCopyBarrier);
 
-	VertexBufferView.BufferLocation = VertexDefaultBuffer->GetGPUVirtualAddress();
-	VertexBufferView.StrideInBytes = sizeof(Vertex);
-	VertexBufferView.SizeInBytes = VertexBufferSize;
+    VertexBufferView.BufferLocation = VertexDefaultBuffer->GetGPUVirtualAddress();
+    VertexBufferView.StrideInBytes = sizeof(Vertex);
+    VertexBufferView.SizeInBytes = VertexBufferSize;
 
     /*************************************IBV********************************/
     // 创建CPU副本
 
-	// 创建默认堆Default Heap
+    // 创建默认堆Default Heap
     CD3DX12_HEAP_PROPERTIES IndexDefaultHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-	//desc-commitresource
-	CD3DX12_RESOURCE_DESC IndexDefaultHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(IndexBufferSize);
+    //desc-commitresource
+    CD3DX12_RESOURCE_DESC IndexDefaultHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(IndexBufferSize);
     device->CreateCommittedResource(
         &IndexDefaultHeapProps,
         D3D12_HEAP_FLAG_NONE,
@@ -544,8 +544,8 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
 
 
     // 创建 Upload Heap 中的临时缓冲区
-	CD3DX12_RESOURCE_DESC IndexUploadHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(IndexBufferSize);
-	CD3DX12_HEAP_PROPERTIES IndexUploadHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC IndexUploadHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(IndexBufferSize);
+    CD3DX12_HEAP_PROPERTIES IndexUploadHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     //desc-commitresource
     device->CreateCommittedResource(
         &IndexUploadHeapProps,
@@ -553,16 +553,16 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         &IndexUploadHeapDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-		IID_PPV_ARGS(&IndexUploadBuffer));
-    
+        IID_PPV_ARGS(&IndexUploadBuffer));
 
-	// 顶点数据->upload
-	UINT8* IndexDataBegin = nullptr;
-	CD3DX12_RANGE IndexReadRange(0, 0);
+
+    // 顶点数据->upload
+    UINT8* IndexDataBegin = nullptr;
+    CD3DX12_RANGE IndexReadRange(0, 0);
     // Map
     // memcpy
-	IndexUploadBuffer->Map(0, &IndexReadRange, reinterpret_cast<void**>(&IndexDataBegin));
-	memcpy(IndexDataBegin, IndiceList.data(), IndexBufferSize);
+    IndexUploadBuffer->Map(0, &IndexReadRange, reinterpret_cast<void**>(&IndexDataBegin));
+    memcpy(IndexDataBegin, IndiceList.data(), IndexBufferSize);
 
 
     //upload-> default
@@ -571,7 +571,7 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
         IndexDefaultBuffer.Get(),
         D3D12_RESOURCE_STATE_COMMON,
         D3D12_RESOURCE_STATE_COPY_DEST
-	);
+    );
     CommandList->ResourceBarrier(1, &PreCopyBarrier_2);
     CommandList->CopyBufferRegion(
         IndexDefaultBuffer.Get(),
@@ -595,7 +595,7 @@ void BoxMesh::InitVertexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* 
     CommandList->ResourceBarrier(1, &PostCopyBarrier_2);
     // 设置IBV
     IndexBufferView.BufferLocation = IndexDefaultBuffer->GetGPUVirtualAddress();
-	IndexBufferView.SizeInBytes = IndexBufferSize;
+    IndexBufferView.SizeInBytes = IndexBufferSize;
     IndexBufferView.Format = DXGI_FORMAT_R16_UINT;
     VertexDefaultBuffer->SetName(L"BoxMesh Default Vertex Buffer");
     VertexUploadBuffer->SetName(L"BoxMesh Upload Vertex Buffer");
@@ -663,7 +663,7 @@ void DXRender::Draw()
     ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
     CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-    for(auto MeshElement : MeshList)
+    for (auto MeshElement : MeshList)
     {
 
         Timer::GetTimerInstance().StartNamedTimer("Draw");
@@ -698,7 +698,7 @@ void DXRender::Draw()
         //ExecuteCommandAndWaitForComplete();
         Timer::GetTimerInstance().StopNamedTimer("ExecuteCommand");
 
-	}
+    }
     // --- 一帧结束 ---
     // 转换当前这个rt的状态到present
     CD3DX12_RESOURCE_BARRIER Barrier_RT2P = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -714,7 +714,7 @@ void DXRender::Draw()
 
     Timer::GetTimerInstance().StopNamedTimer("Draw");
 
-	//Timer::GetTimerInstance().StartNamedTimer("Draw");
+    //Timer::GetTimerInstance().StartNamedTimer("Draw");
 
  //   Timer::GetTimerInstance().StartNamedTimer("UpdateCB");
  //   {
@@ -722,7 +722,7 @@ void DXRender::Draw()
  //       auto MVPMatrix = PtrMesh->CalMVPMatrix(MainCamera.CalViewProjMatrix());
  //       ObjectConstants objConstants;
  //       DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
-	//	memcpy(ConstantBufferMappedData, &objConstants, sizeof(objConstants));
+    //	memcpy(ConstantBufferMappedData, &objConstants, sizeof(objConstants));
  //   }
  //   Timer::GetTimerInstance().StopNamedTimer("UpdateCB");
 
@@ -764,10 +764,10 @@ void DXRender::Draw()
 
     // 画box
  //   auto VertexBufferView = PtrMesh->GetVertexBufferView();
-	//CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
-	//auto IndexBufferView = PtrMesh->GetIndexBufferView();
-	//CommandList->IASetIndexBuffer(&IndexBufferView);
-	//CommandList->DrawIndexedInstanced(PtrMesh->GetIndexCount(), 1, 0, 0, 0);
+    //CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
+    //auto IndexBufferView = PtrMesh->GetIndexBufferView();
+    //CommandList->IASetIndexBuffer(&IndexBufferView);
+    //CommandList->DrawIndexedInstanced(PtrMesh->GetIndexCount(), 1, 0, 0, 0);
 
  //   // 转换当前这个rt的状态到present
  //   CD3DX12_RESOURCE_BARRIER Barrier_RT2P = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -785,8 +785,8 @@ void DXRender::Draw()
  //   CurrentFrameIdx = SwapChain3->GetCurrentBackBufferIndex();
 
  //   Timer::GetTimerInstance().StopNamedTimer("Draw");
-	//Timer::GetTimerInstance().PrintTimeMap();
-	//std::cout << "----------------------------------------" << std::endl;
+    //Timer::GetTimerInstance().PrintTimeMap();
+    //std::cout << "----------------------------------------" << std::endl;
 }
 
 DXRender::~DXRender()
@@ -836,10 +836,10 @@ void MeshBase::InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHe
 
 
     // 创建CBV
-	D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc = {};
+    D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc = {};
     CBVDesc.BufferLocation = ObjectConstantBuffer->GetGPUVirtualAddress();
     CBVDesc.SizeInBytes = constantBufferSize;
-	Device->CreateConstantBufferView(&CBVDesc, CbvCpuHandle);
+    Device->CreateConstantBufferView(&CBVDesc, CbvCpuHandle);
 
 }
 
