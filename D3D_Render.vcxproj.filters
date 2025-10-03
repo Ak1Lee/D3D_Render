@@ -48,6 +48,9 @@
     <ClCompile Include="DXRootSignature.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="DXDevice.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -78,6 +81,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="DXRootSignature.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DXDevice.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

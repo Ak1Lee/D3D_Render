@@ -9,34 +9,11 @@
 #include "Timer.h"
 #include "DXShader.h"
 #include "DXRootSignature.h"
+#include "DXMaterial.h"
 
 
 
-void Device::Init()
-{
-    ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&DxgiFactory)));
 
-    // 创建device
-    HRESULT HardwareCreateResult = D3D12CreateDevice(
-        nullptr,             // 默认适配器
-        D3D_FEATURE_LEVEL_11_0,
-        IID_PPV_ARGS(&D3DDevice)
-    );
-
-    if (HardwareCreateResult == E_NOINTERFACE)
-    {
-        std::cout << "Direct3D 12 is not supported on this device" << std::endl;
-
-        std::cout << " Create Software Simulation" << std::endl;
-        Microsoft::WRL::ComPtr<IDXGIAdapter> WARPAdapter;
-        ThrowIfFailed(DxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&WARPAdapter)));
-    }
-    else
-    {
-        ThrowIfFailed(HardwareCreateResult);
-        std::cout << " D3D12 Create Device Success!" << std::endl;
-    }
-}
 
 LRESULT CALLBACK GlobalWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -102,7 +79,12 @@ void DXRender::InitDX(HWND hWnd)
 
     InitRootSignature();
     CompileShader();
-    InitPSO();
+
+    // 用Materila替代PSO
+    // InitPSO();
+    // shader应该也归属于materila
+    InitMaterial();
+
     CreateFence();
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
 
@@ -316,6 +298,50 @@ void DXRender::InitPSO()
     PsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     PsoDesc.SampleDesc.Count = 1;
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&PipelineState)));
+
+}
+
+void DXRender::InitMaterial()
+{
+    // 输入布局描述
+    D3D12_INPUT_ELEMENT_DESC TestInputLayout[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+    };
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC TestPsoDesc = {};
+    TestPsoDesc.InputLayout = { TestInputLayout, _countof(TestInputLayout) };
+    TestPsoDesc.pRootSignature = RootSignature.Get();
+    auto TESTVS = DXShaderManager::GetInstance().GetShaderByName(L"TestVS")->GetBytecode();
+    auto TESTPS = DXShaderManager::GetInstance().GetShaderByName(L"TestPS")->GetBytecode();
+
+    TestPsoDesc.VS = { reinterpret_cast<BYTE*>(TESTVS->GetBufferPointer()), TESTVS->GetBufferSize() };
+    TestPsoDesc.PS = { reinterpret_cast<BYTE*>(TESTPS->GetBufferPointer()), TESTPS->GetBufferSize() };
+    TestPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    TestPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	TestPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    TestPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    TestPsoDesc.SampleMask = UINT_MAX;
+    TestPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    TestPsoDesc.NumRenderTargets = 1;
+    TestPsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    TestPsoDesc.SampleDesc.Count = 1;
+
+
+
+
+	Material* TestMaterial = new Material("TestMaterial", RootSignature, TestPsoDesc);
+    
+
+
+
+
+
+
+
+
+
 
 }
 
@@ -632,7 +658,12 @@ DirectX::XMMATRIX BoxMesh::CalMVPMatrix(DirectX::XMMATRIX ViewProj)
 void DXRender::Draw()
 {
     ThrowIfFailed(CommandAllocator->Reset());
-    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), PipelineState.Get()));
+    //ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), PipelineState.Get()));
+	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
+
+    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), TestMaterial.GetPSO().Get()));
+
+
     CD3DX12_RESOURCE_BARRIER Barrier_P2RT = CD3DX12_RESOURCE_BARRIER::Transition(
         RenderTargets[CurrentFrameIdx].Get(),
         D3D12_RESOURCE_STATE_PRESENT,

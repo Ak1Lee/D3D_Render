@@ -125,6 +125,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="camera.cpp" />
+    <ClCompile Include="DXDevice.cpp" />
     <ClCompile Include="DXMaterial.cpp" />
     <ClCompile Include="DXPSOManager.cpp" />
     <ClCompile Include="DXRootSignature.cpp" />
@@ -139,6 +140,7 @@
   <ItemGroup>
     <ClInclude Include="camera.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DXDevice.h" />
     <ClInclude Include="DXMaterial.h" />
     <ClInclude Include="DXMaterialManager.h" />
     <ClInclude Include="DXPSOManager.h" />
