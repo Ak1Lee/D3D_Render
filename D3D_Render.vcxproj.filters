@@ -51,6 +51,12 @@
     <ClCompile Include="DXDevice.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Geometry.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Common.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -84,6 +90,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="DXDevice.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

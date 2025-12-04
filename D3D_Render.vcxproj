@@ -125,12 +125,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="camera.cpp" />
+    <ClCompile Include="Common.cpp" />
     <ClCompile Include="DXDevice.cpp" />
     <ClCompile Include="DXMaterial.cpp" />
     <ClCompile Include="DXPSOManager.cpp" />
     <ClCompile Include="DXRootSignature.cpp" />
     <ClCompile Include="DXShader.cpp" />
     <ClCompile Include="dxUtils.cpp" />
+    <ClCompile Include="Geometry.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MathHelper.cpp" />
     <ClCompile Include="render.cpp" />
@@ -139,6 +141,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DXDevice.h" />
     <ClInclude Include="DXMaterial.h" />
@@ -148,6 +151,7 @@
     <ClInclude Include="DXShader.h" />
     <ClInclude Include="dxUtils.h" />
     <ClInclude Include="MathHelper.h" />
+    <ClInclude Include="Geometry.h" />
     <ClInclude Include="render.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
