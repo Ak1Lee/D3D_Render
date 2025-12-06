@@ -128,7 +128,7 @@ public:
 		Name = L"Sphere";
 	};
 
-	void InitVertexBufferAndIndexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList) override;
+	void InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) override;
 
 private:
 	float Radius;
@@ -139,12 +139,14 @@ class Plane : public MeshBase
 {
 public:
 	Plane(float width = 1.0f, float depth = 1.0f, UINT m = 1, UINT n = 1)
-		: Width(width), Depth(depth) {
+		: Width(width), Depth(depth), M(m), N(n){
 		Name = L"Plane";
 	};
-	void InitVertexBufferAndIndexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList) override;
+	void InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) override;
 
 private:
 	float Width;
 	float Depth;
+	UINT M;
+	UINT N;
 };

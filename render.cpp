@@ -106,6 +106,22 @@ void DXRender::InitDX(HWND hWnd)
         MeshList.push_back(BoxPtr);
     }
 
+    for (int i = 0; i < 6; ++i)
+    {
+		auto SpherePtr = new Sphere();
+		SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
+		SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+		SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
+		MeshList.push_back(SpherePtr);
+	}
+
+	auto PanelPtr = new Plane(10,10,10,10);
+	PanelPtr->SetPosition(0.0f, -2.0f, 0.0f);
+	PanelPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+	PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+	MeshList.push_back(PanelPtr);
+
+
     PtrMesh = new Box();
     PtrMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 

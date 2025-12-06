@@ -264,11 +264,147 @@ void Box::InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCom
 
 }
 
-void Sphere::InitVertexBufferAndIndexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
+void Sphere::InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList)
 {
+	VertexList.clear();
+	IndiceList.clear();
+
+    // 顶点
+	float PhiStep = DirectX::XM_PI / Stacks;
+	float ThetaStep = 2.0f * DirectX::XM_PI / Slices;
+
+    for(auto i = 0; i <= Stacks; ++i)
+    {
+        float Phi = i * PhiStep;
+        for(auto j = 0; j <= Slices; ++j)
+        {
+			float  Theta = j * ThetaStep;
+
+			float x = Radius * sinf(Phi) * cosf(Theta);
+			float y = Radius * cosf(Phi);
+			float z = Radius * sinf(Phi) * sinf(Theta);
+            DirectX::XMFLOAT3 Pos(x, y, z);
+
+			DirectX::XMVECTOR N = DirectX::XMVector3Normalize(DirectX::XMLoadFloat3(&Pos));
+            DirectX::XMFLOAT3 Normal;
+			DirectX::XMStoreFloat3(&Normal, N);
+
+            DirectX::XMFLOAT4 Color = {
+                Normal.x * 0.5f + 0.5f,
+                Normal.y * 0.5f + 0.5f,
+                Normal.z * 0.5f + 0.5f,
+                1.0f
+            };
+
+            VertexList.push_back({ Pos, Color });
+
+        }
+
+	}
+
+    // 索引数据
+    for(auto i = 0; i < Stacks; ++i)
+    {
+        for(auto j = 0; j < Slices; ++j)
+        {
+            UINT stride = Slices + 1;
+
+            UINT topLeft = i * stride + j;
+            UINT topRight = i * stride + (j + 1);
+            UINT bottomLeft = (i + 1) * stride + j;
+            UINT bottomRight = (i + 1) * stride + (j + 1);
+
+            // 两个三角形组成一个Quad
+            // 顺序：(TopLeft, BottomLeft, TopRight)
+            IndiceList.push_back(topLeft);
+            IndiceList.push_back(bottomLeft);
+            IndiceList.push_back(topRight);
+
+            // 顺序：(TopRight, BottomLeft, BottomRight)
+            IndiceList.push_back(topRight);
+            IndiceList.push_back(bottomLeft);
+            IndiceList.push_back(bottomRight);
+        }
+	}
+    CreateVertexAndIndexBufferHeap(Device, CommandList);
+
 
 }
 
 void Plane::InitVertexBufferAndIndexBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList)
 {
+    VertexList.clear();
+    IndiceList.clear();
+
+	float HalfWidth = 0.5f * Width;
+	float HalfDepth = 0.5f * Depth;
+
+	float dx = Width / static_cast<float>(M);
+	float dz = Depth / static_cast<float>(N);
+
+    for (UINT i = 0; i < M + 1; ++i)
+    {
+        // Z坐标：从 +Depth/2 递减到 -Depth/2 (或者反过来，取决于你的坐标系习惯)
+        // 这里采用 Z 从正到负，对应纹理坐标 V 从 0 到 1
+        float z = HalfDepth - i * dz;
+
+        for (UINT j = 0; j < N + 1; ++j)
+        {
+            // X坐标：从 -Width/2 递增到 +Width/2
+            float x = -HalfWidth + j * dx;
+
+            // Y坐标：平面躺在地上，所以 Y = 0
+            DirectX::XMFLOAT3 pos(x, 0.0f, z);
+
+            // --- 颜色生成 (棋盘格效果) ---
+            // 根据 i 和 j 的奇偶性决定颜色，这样即使没有光照也能看清网格
+            DirectX::XMFLOAT4 color;
+            if ((i + j) % 2 == 0)
+            {
+                // 白色格
+                color = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+            }
+            else
+            {
+                // 灰色格 (区别于黑色背景)
+                color = DirectX::XMFLOAT4(0.4f, 0.4f, 0.4f, 1.0f);
+            }
+
+            VertexList.push_back({ pos, color });
+        }
+    }
+
+    // 2. 生成索引
+    // 遍历每一个格子 (Quad)，每个格子切成两个三角形
+    for (UINT i = 0; i < M; ++i)
+    {
+        for (UINT j = 0; j < N; ++j)
+        {
+            // 计算当前格子四个顶点的索引
+            // 每一行有 (N+1) 个顶点
+            UINT rowStride = N + 1;
+
+            UINT topLeft = i * rowStride + j;
+            UINT topRight = i * rowStride + (j + 1);
+            UINT bottomLeft = (i + 1) * rowStride + j;
+            UINT bottomRight = (i + 1) * rowStride + (j + 1);
+
+            // 三角形 1: TopLeft -> TopRight -> BottomLeft
+            IndiceList.push_back(topLeft);
+            IndiceList.push_back(topRight);
+            IndiceList.push_back(bottomLeft);
+
+            // 三角形 2: BottomLeft -> TopRight -> BottomRight
+            IndiceList.push_back(bottomLeft);
+            IndiceList.push_back(topRight);
+            IndiceList.push_back(bottomRight);
+        }
+    }
+
+    // 3. 创建 GPU 资源 (调用基类方法)
+    CreateVertexAndIndexBufferHeap(device, cmdList);
+
+    // 4. 设置调试名
+    if (VertexDefaultBufferGPU) VertexDefaultBufferGPU->SetName(L"Plane Vertex Buffer");
+    if (IndexDefaultBufferGPU) IndexDefaultBufferGPU->SetName(L"Plane Index Buffer");
 }
