@@ -88,6 +88,14 @@ private:
     UINT8* ConstantBufferMappedData = nullptr;
     // Constant Buffer
 
+	// Light Constant Buffer View
+	Microsoft::WRL::ComPtr<ID3D12Resource> LightConstantBuffer;
+	UINT8* LightConstantBufferMappedData = nullptr;
+	D3D12_CPU_DESCRIPTOR_HANDLE LightCbvCpuHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE LightCbvGpuHandle;
+	LightConstants LightConstantInstance;
+    static const UINT LightCbvHeapIndex = 19;
+
 	// DepthStencilBuffer
 	Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;

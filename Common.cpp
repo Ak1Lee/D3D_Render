@@ -42,6 +42,15 @@ StandardVertex::StandardVertex(const DirectX::XMFLOAT3& InPosition) : Position(I
 	Color = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
+StandardVertex::StandardVertex(const DirectX::XMFLOAT3& InPosition, const DirectX::XMFLOAT3& InNormal, const DirectX::XMFLOAT4& InColor)
+    : Position(InPosition),
+      Normal(InNormal),
+	  Color(InColor)
+{
+    TexCoord = DirectX::XMFLOAT2(0.0f, 0.0f);
+    Tangent = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+}
+
 StandardVertex::StandardVertex(float px, float py, float pz, float nx, float ny, float nz, float u, float v, float tx, float ty, float tz, float r, float g, float b, float a) 
     : Position(px, py, pz),
       Normal(nx, ny, nz),

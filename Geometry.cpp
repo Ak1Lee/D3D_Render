@@ -215,45 +215,106 @@ Box::Box(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) : MeshBas
 
 void Box::InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList)
 {
-    VertexList.clear();
+
+    auto cRed = DirectX::XMFLOAT4(DirectX::Colors::Red);
+    auto cGreen = DirectX::XMFLOAT4(DirectX::Colors::Green);
+    auto cBlue = DirectX::XMFLOAT4(DirectX::Colors::Blue);
+    auto cYellow = DirectX::XMFLOAT4(DirectX::Colors::Yellow);
+    auto cCyan = DirectX::XMFLOAT4(DirectX::Colors::Cyan);
+    auto cMagenta = DirectX::XMFLOAT4(DirectX::Colors::Magenta);
+    auto cWhite = DirectX::XMFLOAT4(DirectX::Colors::White);
+    auto cBlack = DirectX::XMFLOAT4(DirectX::Colors::Black);
+
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), cWhite }); // 0
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), cBlack }); // 1
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), cRed }); // 2
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, -1.0f), cGreen }); // 3
+
+    // 2. Back Face (Z = +1) -> Normal (0, 0, 1)
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f), cMagenta }); // 4
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f), cCyan }); // 5
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f), cYellow }); // 6
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f), cBlue }); // 7
+
+    // 3. Top Face (Y = +1) -> Normal (0, 1, 0)
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), cBlack }); // 8
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), cYellow }); // 9
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), cCyan }); // 10
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f), cRed }); // 11
+
+    // 4. Bottom Face (Y = -1) -> Normal (0, -1, 0)
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, -1.0f, 0.0f), cBlue }); // 12
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, -1.0f, 0.0f), cWhite }); // 13
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(0.0f, -1.0f, 0.0f), cGreen }); // 14
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(0.0f, -1.0f, 0.0f), cMagenta }); // 15
+
+    // 5. Left Face (X = -1) -> Normal (-1, 0, 0)
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(-1.0f, 0.0f, 0.0f), cBlue }); // 16
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(-1.0f, 0.0f, 0.0f), cYellow }); // 17
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(-1.0f, 0.0f, 0.0f), cBlack }); // 18
+    VertexList.push_back({ DirectX::XMFLOAT3(-1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(-1.0f, 0.0f, 0.0f), cWhite }); // 19
+
+    // 6. Right Face (X = +1) -> Normal (1, 0, 0)
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f, -1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f), cGreen }); // 20
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f, -1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f), cRed }); // 21
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f,  1.0f,  1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f), cCyan }); // 22
+    VertexList.push_back({ DirectX::XMFLOAT3(1.0f, -1.0f,  1.0f), DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f), cMagenta }); // 23
+
+    for (int i = 0; i < 6; ++i)
     {
-        VertexList.push_back({ DirectX::XMFLOAT3(-1.0, -1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::White) });
-        VertexList.push_back({ DirectX::XMFLOAT3(-1.0, +1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Black) });
-        VertexList.push_back({ DirectX::XMFLOAT3(+1.0, +1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Red) });
-        VertexList.push_back({ DirectX::XMFLOAT3(+1.0, -1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Green) });
-        VertexList.push_back({ DirectX::XMFLOAT3(-1.0, -1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Blue) });
-        VertexList.push_back({ DirectX::XMFLOAT3(-1.0, +1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Yellow) });
-        VertexList.push_back({ DirectX::XMFLOAT3(+1.0, +1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Cyan) });
-        VertexList.push_back({ DirectX::XMFLOAT3(+1.0, -1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Magenta) });
+        // 每个面的起始顶点索引 (0, 4, 8, 12, 16, 20)
+        std::uint16_t baseIndex = i * 4;
+
+        // Triangle 1
+        IndiceList.push_back(baseIndex + 0);
+        IndiceList.push_back(baseIndex + 1);
+        IndiceList.push_back(baseIndex + 2);
+
+        // Triangle 2
+        IndiceList.push_back(baseIndex + 0);
+        IndiceList.push_back(baseIndex + 2);
+        IndiceList.push_back(baseIndex + 3);
     }
 
+    //VertexList.clear();
+    //{
+    //    VertexList.push_back({ DirectX::XMFLOAT3(-1.0, -1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::White) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(-1.0, +1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Black) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(+1.0, +1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Red) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(+1.0, -1.0f, -1.0),DirectX::XMFLOAT4(DirectX::Colors::Green) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(-1.0, -1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Blue) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(-1.0, +1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Yellow) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(+1.0, +1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Cyan) });
+    //    VertexList.push_back({ DirectX::XMFLOAT3(+1.0, -1.0f, +1.0),DirectX::XMFLOAT4(DirectX::Colors::Magenta) });
+    //}
 
-    IndiceList =
-    {
-        // front face
-        0, 1, 2,
-        0, 2, 3,
 
-        // back face
-        4, 6, 5,
-        4, 7, 6,
+    //IndiceList =
+    //{
+    //    // front face
+    //    0, 1, 2,
+    //    0, 2, 3,
 
-        // left face
-        4, 5, 1,
-        4, 1, 0,
+    //    // back face
+    //    4, 6, 5,
+    //    4, 7, 6,
 
-        // right face
-        3, 2, 6,
-        3, 6, 7,
+    //    // left face
+    //    4, 5, 1,
+    //    4, 1, 0,
 
-        // top face
-        1, 5, 6,
-        1, 6, 2,
+    //    // right face
+    //    3, 2, 6,
+    //    3, 6, 7,
 
-        // bottom face
-        4, 0, 3,
-        4, 3, 7
-    };
+    //    // top face
+    //    1, 5, 6,
+    //    1, 6, 2,
+
+    //    // bottom face
+    //    4, 0, 3,
+    //    4, 3, 7
+    //};
 
     CreateVertexAndIndexBufferHeap(Device, CommandList);
 
@@ -296,7 +357,7 @@ void Sphere::InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12Graphics
                 1.0f
             };
 
-            VertexList.push_back({ Pos, Color });
+            VertexList.push_back({ Pos, Normal, Color });
 
         }
 

@@ -7,6 +7,23 @@ struct ObjectConstants
 {
 	DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
 };
+
+// 光照常量缓冲区结构
+struct LightConstants
+{
+    DirectX::XMFLOAT3 LightDirection = { 0.57735f, -0.57735f, 0.57735f };
+    float LightIntensity = 1.0f;
+
+    DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 0.0f };
+    float _Padding1;
+
+    DirectX::XMFLOAT3 AmbientColor = { 0.1f, 0.1f, 0.1f };
+    float _Padding2;
+
+    DirectX::XMFLOAT3 CameraPosition = { 0.0f, 0.0f, 0.0f };
+    float _Padding3;
+};
+
 // 顶点结构
 struct SimpleVertex
 {
@@ -38,6 +55,10 @@ struct StandardVertex
     StandardVertex(const DirectX::XMFLOAT3& InPosition, const DirectX::XMFLOAT4& InColor);
 
     StandardVertex(const DirectX::XMFLOAT3& InPosition);
+
+    StandardVertex(const DirectX::XMFLOAT3& InPosition,
+        const DirectX::XMFLOAT3& InNormal,
+        const DirectX::XMFLOAT4& InColor);
 
     StandardVertex(float px, float py, float pz,
         float nx, float ny, float nz,

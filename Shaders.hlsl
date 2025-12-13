@@ -2,6 +2,20 @@ cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorldViewProj;
 };
+cbuffer cbPerFrame : register(b1)
+{
+    float3 gLightDir;
+    float gLightIntensity;
+    
+    float3 gLightColor;
+    float _Padding1;
+    
+    float3 gAmbientColor;
+    float _Padding2;
+    
+    float3 gCameraPos;
+    float _Padding3;
+};
 
 struct VertexIn
 {
@@ -29,6 +43,8 @@ PSInput VSMain(VertexIn In)
     output.texCoord = In.TexCoord; // 传递
     output.tangent = In.Tangent; // 传递
     output.color = In.Color;
+    output.color.rgb = In.Normal;
+    //gLightColor; // 简单光照调节
     return output;
 }
 

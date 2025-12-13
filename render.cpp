@@ -82,7 +82,7 @@ void DXRender::InitDX(HWND hWnd)
 
     // 用Materila替代PSO
     // InitPSO();
-    // shader应该也归属于materila
+    // shader应该也归属于material
     InitMaterial();
 
     CreateFence();
@@ -252,13 +252,39 @@ void DXRender::CreateConstantBufferView()
  //   cbvDesc.SizeInBytes = constantBufferSize; // 必须是256字节对齐
     //Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
 
+	// Light Constant Buffer
+	const UINT LightConstantBufferSize = (sizeof(LightConstants) + 255) & ~255;
+
+    // 创建上传堆的常量缓冲资源
+    CD3DX12_HEAP_PROPERTIES LightHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(LightConstantBufferSize);
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&LightHeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+		IID_PPV_ARGS(&LightConstantBuffer)));
+    // 2) 映射得到 CPU 可写指针
+    CD3DX12_RANGE ReadRange(0, 0);
+    ThrowIfFailed(LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData)));
+	LightCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
+    LightCbvCpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
+    LightCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
+    LightCbvGpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
+    // 创建 CBV 
+    D3D12_CONSTANT_BUFFER_VIEW_DESC LightCbvDesc = {};
+    LightCbvDesc.BufferLocation = LightConstantBuffer->GetGPUVirtualAddress();
+    LightCbvDesc.SizeInBytes = LightConstantBufferSize;
+	Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&LightCbvDesc, LightCbvCpuHandle);
+
 }
 
 void DXRender::InitRootSignature()
 {
     // 跟参数
 	DXRootSignature rootSigBuilder;
+    // b0 constant
 	rootSigBuilder.AddCBVDescriptorTable(0, D3D12_SHADER_VISIBILITY_ALL);
+	// b1 light constant
+	rootSigBuilder.AddCBVDescriptorTable(1, D3D12_SHADER_VISIBILITY_ALL);
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
@@ -391,6 +417,17 @@ void DXRender::Draw()
     // 绑定描述符堆
     ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
     CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+    //Light Constants
+    LightConstantInstance.CameraPosition = { 0.0,0.0,0.0 };
+
+    // 将数据拷贝到 Map 好的内存中
+    if (LightConstantBufferMappedData)
+    {
+        memcpy(LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
+    }
+    CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
+
 
     for (auto MeshElement : MeshList)
     {
