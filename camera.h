@@ -4,6 +4,12 @@
 #include "MathHelper.h"
 #include "Common.h"
 
+struct CamPosition
+{
+	float x;
+	float y;
+	float z;
+};
 
 class Camera
 {
@@ -22,6 +28,7 @@ class Camera
 	void Init(float InWidth, float InHeight);
 
 	void SetPosition(float x, float y, float z);
+	CamPosition GetPosition() const { return CamPosition{ Position.x, Position.y,  Position.z }; }
 
 	void UpdateForwardVector();
 	void ProcessKeyboard(char key, float dt);

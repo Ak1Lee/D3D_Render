@@ -28,7 +28,7 @@
 #include <iostream>
 #include <comdef.h>
 
-#include "Timer.h"
+//#include "Timer.h"
 #include "dxUtils.h"
 #include "render.h"
 

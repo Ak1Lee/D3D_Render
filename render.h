@@ -124,5 +124,8 @@ private:
 
 	MeshBase* PtrMesh = nullptr;
 
+    //imgui
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ImguiSrvHeap = nullptr;
+
 };
 

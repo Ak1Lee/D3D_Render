@@ -10,17 +10,26 @@
 #include "DXShader.h"
 #include "DXRootSignature.h"
 #include "DXMaterial.h"
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_win32.h"
+#include "imgui/backends/imgui_impl_dx12.h"
 
 
 
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT CALLBACK GlobalWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
+        return true;
 
     auto& camera = DXRender::GetInstance().GetMainCamera();
-
-    camera.CameraWindowProc(hwnd, msg, wParam, lParam);
+    if (!ImGui::GetCurrentContext() || !ImGui::GetIO().WantCaptureMouse)
+    {
+        camera.CameraWindowProc(hwnd, msg, wParam, lParam);
+    }
+    //camera.CameraWindowProc(hwnd, msg, wParam, lParam);
     switch (msg)
     {
     case WM_DESTROY:
@@ -56,6 +65,31 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     ShowWindow(hwnd, nCmdShow);
 
     InitDX(hwnd);
+
+    // imgui - 在 InitDX 之后初始化
+    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    desc.NumDescriptors = 1; // ImGui 只需要一个位置存字体贴图
+    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // 必须是 Shader 可见的
+    Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&ImguiSrvHeap));
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.Fonts->AddFontDefault();
+    io.Fonts->Build();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplWin32_Init(hwnd);
+
+    HRESULT hr = ImGui_ImplDX12_Init(Device::GetInstance().GetD3DDevice(), FrameBufferCount,
+        DXGI_FORMAT_R8G8B8A8_UNORM, ImguiSrvHeap.Get(),
+        ImguiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
+        ImguiSrvHeap->GetGPUDescriptorHandleForHeapStart());
+    if (FAILED(hr)) {
+        MessageBox(NULL, L"ImGui_ImplDX12_Init Failed!", L"Error", MB_OK);
+        return;
+    }
 
 }
 
@@ -465,6 +499,37 @@ void DXRender::Draw()
         Timer::GetTimerInstance().StopNamedTimer("ExecuteCommand");
 
     }
+
+    // --- Start ImGui Frame ---
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    // --- Build UI ---
+    {
+        ImGui::Begin("Debug Info");
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+            1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        // You can add controls here later
+        // ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+
+        // camera
+		auto MainCameraPos = MainCamera.GetPosition();
+        float MainCameraPosFloat3[3] = { MainCameraPos.x, MainCameraPos.y, MainCameraPos.z };
+        if (ImGui::DragFloat3("Camera Position", MainCameraPosFloat3, 0.1f))
+        {
+			MainCamera.SetPosition(MainCameraPosFloat3[0], MainCameraPosFloat3[1], MainCameraPosFloat3[2]);
+        }
+
+        ImGui::End();
+    }
+    ImGui::Render();
+    
+    // 切换到 ImGui 的 descriptor heap 并渲染
+    ID3D12DescriptorHeap* imguiHeaps[] = { ImguiSrvHeap.Get()};
+    CommandList->SetDescriptorHeaps(1, imguiHeaps);
+    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), CommandList.Get());
+    
     // --- 一帧结束 ---
     // 转换当前这个rt的状态到present
     CD3DX12_RESOURCE_BARRIER Barrier_RT2P = CD3DX12_RESOURCE_BARRIER::Transition(

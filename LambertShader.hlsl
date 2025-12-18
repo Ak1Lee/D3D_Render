@@ -19,11 +19,11 @@ cbuffer cbPerFrame : register(b1)
 
 struct VertexIn
 {
-    float3 Position : POSITION; // 必须匹配
-    float3 Normal : NORMAL; // 可以不用，但要声明保持顺序
-    float2 TexCoord : TEXCOORD; // 可以不用，但要声明保持顺序
-    float3 Tangent : TANGENT; // 可以不用，但要声明保持顺序
-    float4 Color : COLOR; // 使用
+    float3 Position : POSITION;
+    float3 Normal : NORMAL;
+    float2 TexCoord : TEXCOORD; 
+    float3 Tangent : TANGENT;
+    float4 Color : COLOR;
 };
 
 struct PSInput
@@ -39,9 +39,9 @@ PSInput VSMain(VertexIn In)
 {
     PSInput output;
     output.position = mul(float4(In.Position, 1.0f), gWorldViewProj);
-    output.normal = In.Normal; // 传递（即使暂不使用）
-    output.texCoord = In.TexCoord; // 传递
-    output.tangent = In.Tangent; // 传递
+    output.normal = In.Normal;
+    output.texCoord = In.TexCoord;
+    output.tangent = In.Tangent;
     output.color = In.Color;
     output.color.rgb = In.Normal;
     output.color.rgb = dot(In.Normal, gLightDir)*0.5 + 0.5;
