@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>D:\Code\VS_Project\D3D_Render\imgui;D:\Code\VS_Project\D3D_Render;$(IncludePath)</IncludePath>
+    <IncludePath>E:\VSworkspace\D3D_Render\imgui;E:\VSworkspace\D3D_Render;D:\Code\VS_Project\D3D_Render\imgui;D:\Code\VS_Project\D3D_Render;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

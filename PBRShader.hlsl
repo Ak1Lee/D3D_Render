@@ -17,7 +17,7 @@ cbuffer cbPerFrame : register(b1)
     float _Padding3;
 };
 
-cbuffer MaterialCB : register(b2) 
+cbuffer MaterialCB : register(b2)
 {
     float4 g_Albedo; // 颜色
     float g_Roughness; // 粗糙度
@@ -63,7 +63,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
+    float k = (r * r) / 8.0; // 直接光照下的k值计算
 
     float nom = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -94,7 +94,7 @@ PSInput VSMain(VertexIn In)
     output.tangent = In.Tangent;
     output.color = In.Color;
     output.color.rgb = In.Normal;
-    output.color.rgb = dot(In.Normal, gLightDir)*0.5 + 0.5;
+    output.color.rgb = g_Albedo.rgb;
     output.color.rgb = g_Albedo.rgb * dot(In.Normal, gLightDir) * 0.5 + 0.5;
     output.worldposition = In.Position;
     //gLightColor; // 简单光照调节
@@ -103,5 +103,41 @@ PSInput VSMain(VertexIn In)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    return input.color;
+    float3 albedo = g_Albedo;
+    float metallic = g_Metallic;
+    float roughness = g_Roughness;
+    float ao = g_AO;
+    
+    float3 N = input.normal;
+    float3 V = normalize(gCameraPos - input.worldposition);
+    float3 F0 = float3(0.04, 0.04, 0.04);
+    F0 = lerp(F0, albedo, metallic);
+    float3 L = gLightDir;
+    float3 H = normalize(V + L);
+    
+    float NDF = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    float3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+    float3 radiance = gLightColor;
+    
+    
+    float3 numerator = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 防止除零
+    float3 specular = numerator / denominator;
+    
+    // 计算漫反射比例 kD
+    float3 kS = F;
+    float3 kD = float3(1.0, 1.0, 1.0) - kS;
+    kD *= 1.0 - metallic;
+    
+
+    float NdotL = max(dot(N, L), 0.0);
+    float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
+    
+    float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
+    
+    float3 color = ambient + Lo;
+    
+    return float4(color, 1.0);;
+    //return float4(N,1.0);
 }

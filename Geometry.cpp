@@ -375,15 +375,25 @@ void Sphere::InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12Graphics
             UINT bottomLeft = (i + 1) * stride + j;
             UINT bottomRight = (i + 1) * stride + (j + 1);
 
-            // 两个三角形组成一个Quad
-            // 顺序：(TopLeft, BottomLeft, TopRight)
-            IndiceList.push_back(topLeft);
-            IndiceList.push_back(bottomLeft);
-            IndiceList.push_back(topRight);
+            //// 两个三角形组成一个Quad
+            //// 顺序：(TopLeft, BottomLeft, TopRight)
+            //IndiceList.push_back(topLeft);
+            //IndiceList.push_back(bottomLeft);
+            //IndiceList.push_back(topRight);
 
-            // 顺序：(TopRight, BottomLeft, BottomRight)
+            //// 顺序：(TopRight, BottomLeft, BottomRight)
+            //IndiceList.push_back(topRight);
+            //IndiceList.push_back(bottomLeft);
+            //IndiceList.push_back(bottomRight);
+
+            // Tri 1: TopLeft -> TopRight -> BottomLeft
+            IndiceList.push_back(topLeft);
             IndiceList.push_back(topRight);
             IndiceList.push_back(bottomLeft);
+
+            // Tri 2: BottomLeft -> TopRight -> BottomRight
+            IndiceList.push_back(bottomLeft);
+            IndiceList.push_back(topRight);
             IndiceList.push_back(bottomRight);
         }
 	}

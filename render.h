@@ -96,6 +96,15 @@ private:
 	LightConstants LightConstantInstance;
     static const UINT LightCbvHeapIndex = 19;
 
+    // Maeterial Constant Buffer View b2
+    Microsoft::WRL::ComPtr<ID3D12Resource> MaterialConstantBuffer;
+	UINT8* MaterialConstantBufferMappedData = nullptr;
+	D3D12_CPU_DESCRIPTOR_HANDLE MaterialCbvCpuHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE MaterialCbvGpuHandle;
+	MaterialConstants MaterialConstantInstance;
+	static const UINT MaterialCbvHeapIndex = 18;
+
+
 	// DepthStencilBuffer
 	Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;

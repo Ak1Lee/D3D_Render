@@ -309,6 +309,27 @@ void DXRender::CreateConstantBufferView()
     LightCbvDesc.SizeInBytes = LightConstantBufferSize;
 	Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&LightCbvDesc, LightCbvCpuHandle);
 
+
+	// Material Constant Buffer
+    const UINT MaterialConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
+    CD3DX12_HEAP_PROPERTIES MatHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC MatBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MaterialConstantBufferSize);
+	ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&MatHeapProps, D3D12_HEAP_FLAG_NONE, &MatBufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&MaterialConstantBuffer)));
+    CD3DX12_RANGE MatReadRange(0, 0);
+    ThrowIfFailed(MaterialConstantBuffer->Map(0, &MatReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData)));
+	MaterialCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
+	MaterialCbvCpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
+	MaterialCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
+	MaterialCbvGpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
+	D3D12_CONSTANT_BUFFER_VIEW_DESC MaterialCbvDesc = {};
+	MaterialCbvDesc.BufferLocation = MaterialConstantBuffer->GetGPUVirtualAddress();
+	MaterialCbvDesc.SizeInBytes = MaterialConstantBufferSize;
+    Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&MaterialCbvDesc, MaterialCbvCpuHandle);
+
+
 }
 
 void DXRender::InitRootSignature()
@@ -317,8 +338,10 @@ void DXRender::InitRootSignature()
 	DXRootSignature rootSigBuilder;
     // b0 constant
 	rootSigBuilder.AddCBVDescriptorTable(0, D3D12_SHADER_VISIBILITY_ALL);
-	// b1 light constant
+	// b1 light constant cbPerFrame
 	rootSigBuilder.AddCBVDescriptorTable(1, D3D12_SHADER_VISIBILITY_ALL);
+    // b2 material constant
+    rootSigBuilder.AddCBVDescriptorTable(2, D3D12_SHADER_VISIBILITY_ALL);
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
@@ -326,8 +349,8 @@ void DXRender::InitRootSignature()
 void DXRender::CompileShader()
 {
 
-	DXShaderManager::GetInstance().CreateOrFindShader(L"TestVS", L"Shaders.hlsl", "VSMain", "vs_5_0");
-    DXShaderManager::GetInstance().CreateOrFindShader(L"TestPS", L"Shaders.hlsl", "PSMain", "ps_5_0");
+	DXShaderManager::GetInstance().CreateOrFindShader(L"TestVS", L"PBRShader.hlsl", "VSMain", "vs_5_0");
+    DXShaderManager::GetInstance().CreateOrFindShader(L"TestPS", L"PBRShader.hlsl", "PSMain", "ps_5_0");
 
 }
 
@@ -453,7 +476,8 @@ void DXRender::Draw()
     CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
     //Light Constants
-    LightConstantInstance.CameraPosition = { 0.0,0.0,0.0 };
+	auto MainCameraPos = MainCamera.GetPosition();
+    LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
 
     // 将数据拷贝到 Map 好的内存中
     if (LightConstantBufferMappedData)
@@ -462,6 +486,12 @@ void DXRender::Draw()
     }
     CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
 
+	// Material Constants
+    if (MaterialConstantBufferMappedData)
+    {
+        memcpy(MaterialConstantBufferMappedData, &MaterialConstantInstance, sizeof(MaterialConstants));
+    }
+    CommandList->SetGraphicsRootDescriptorTable(2, MaterialCbvGpuHandle);
 
     for (auto MeshElement : MeshList)
     {
