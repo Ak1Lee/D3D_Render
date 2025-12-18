@@ -123,7 +123,7 @@ public:
 class Sphere : public MeshBase
 {
 public:
-	Sphere(float radius = 1.0f, UINT slices = 20, UINT stacks = 20)
+	Sphere(float radius = 1.0f, UINT slices = 40, UINT stacks = 40)
 		: Radius(radius), Slices(slices), Stacks(stacks) {
 		Name = L"Sphere";
 	};

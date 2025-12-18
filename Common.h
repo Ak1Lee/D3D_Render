@@ -10,7 +10,7 @@ struct ObjectConstants
 
 struct MaterialConstants
 {
-    DirectX::XMFLOAT4 Albedo = {0.8f, 0.3f,0.3f,0.0f};    // 16 bytes
+    DirectX::XMFLOAT4 Albedo = {0.8f, 0.8f,0.8f,0.0f};    // 16 bytes
     float Roughness = 0.5;    // 4 bytes
     float Metallic = 0.1;     // 4 bytes
     float AO = 0;           // 4 bytes
@@ -23,7 +23,7 @@ struct LightConstants
     DirectX::XMFLOAT3 LightDirection = { 1.f, 0.f, 0.f };
     float LightIntensity = 1.0f;
 
-    DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 0.0f };
+    DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 1.0f };
     float _Padding1;
 
     DirectX::XMFLOAT3 AmbientColor = { 0.1f, 0.1f, 0.1f };

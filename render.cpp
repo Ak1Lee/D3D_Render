@@ -551,6 +551,19 @@ void DXRender::Draw()
 			MainCamera.SetPosition(MainCameraPosFloat3[0], MainCameraPosFloat3[1], MainCameraPosFloat3[2]);
         }
 
+		// light dir
+		auto LightDir = LightConstantInstance.LightDirection;
+		float LightDirFloat3[3] = { LightDir.x, LightDir.y, LightDir.z };
+        if (ImGui::DragFloat3("Light Dir", LightDirFloat3, 0.02f))
+        {
+			LightConstantInstance.LightDirection = { LightDirFloat3[0], LightDirFloat3[1], LightDirFloat3[2] };
+        }
+		float Roughness = MaterialConstantInstance.Roughness;
+        if (ImGui::DragFloat("Roughness", &Roughness, 0.02f, 0.05f, 1.0f))
+        {
+			MaterialConstantInstance.Roughness = Roughness;
+        }
+
         ImGui::End();
     }
     ImGui::Render();

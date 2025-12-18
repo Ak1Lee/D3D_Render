@@ -128,6 +128,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     // ¼ÆËãÂş·´Éä±ÈÀı kD
     float3 kS = F;
     float3 kD = float3(1.0, 1.0, 1.0) - kS;
+    metallic = 0;
     kD *= 1.0 - metallic;
     
 
