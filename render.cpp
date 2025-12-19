@@ -114,15 +114,17 @@ void DXRender::InitDX(HWND hWnd)
     InitRootSignature();
     CompileShader();
 
-    // 用Materila替代PSO
-    // InitPSO();
-    // shader应该也归属于material
-    InitMaterial();
+
 
     CreateFence();
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
 
     CreateConstantBufferView();
+
+    // 用Materila替代PSO
+    // InitPSO();
+    // shader应该也归属于material
+    InitMaterial();
 
     // VIEWPORT and SCISSOR
     InitViewportAndScissor();
@@ -136,7 +138,10 @@ void DXRender::InitDX(HWND hWnd)
         auto BoxPtr = new Box();
         BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
         BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
+		DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+        // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
+        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+		BoxPtr->SetMaterialByName("Mat_Red");
         MeshList.push_back(BoxPtr);
     }
 
@@ -145,14 +150,21 @@ void DXRender::InitDX(HWND hWnd)
 		auto SpherePtr = new Sphere();
 		SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
 		SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-		SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
+		//SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
+        DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+        SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+		SpherePtr->SetMaterialByName("Mat_Gold");
 		MeshList.push_back(SpherePtr);
 	}
 
 	auto PanelPtr = new Plane(10,10,10,10);
 	PanelPtr->SetPosition(0.0f, -2.0f, 0.0f);
 	PanelPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-	PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+    DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+	//PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+    PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+	PanelPtr->SetMaterialByName("Mat_Red");
+
 	MeshList.push_back(PanelPtr);
 
 
@@ -262,7 +274,7 @@ void DXRender::InitRenderTargetHeapAndView()
 void DXRender::CreateConstantBufferView()
 {
     D3D12_DESCRIPTOR_HEAP_DESC ConstantBufferViewHeapDesc = {};
-    ConstantBufferViewHeapDesc.NumDescriptors = 20;
+    ConstantBufferViewHeapDesc.NumDescriptors = MAX_HEAP_SIZE;
     ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
@@ -299,10 +311,13 @@ void DXRender::CreateConstantBufferView()
     // 2) 映射得到 CPU 可写指针
     CD3DX12_RANGE ReadRange(0, 0);
     ThrowIfFailed(LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData)));
-	LightCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
-    LightCbvCpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
-    LightCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
-    LightCbvGpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
+    auto LightCvbHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+	LightCbvCpuHandle = LightCvbHandle.CpuHandle;
+	LightCbvGpuHandle = LightCvbHandle.GpuHandle;
+	//LightCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
+ //   LightCbvCpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
+ //   LightCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
+ //   LightCbvGpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
     // 创建 CBV 
     D3D12_CONSTANT_BUFFER_VIEW_DESC LightCbvDesc = {};
     LightCbvDesc.BufferLocation = LightConstantBuffer->GetGPUVirtualAddress();
@@ -320,10 +335,14 @@ void DXRender::CreateConstantBufferView()
 		IID_PPV_ARGS(&MaterialConstantBuffer)));
     CD3DX12_RANGE MatReadRange(0, 0);
     ThrowIfFailed(MaterialConstantBuffer->Map(0, &MatReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData)));
-	MaterialCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
-	MaterialCbvCpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
-	MaterialCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
-	MaterialCbvGpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
+
+	auto MaterialCvbHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+	MaterialCbvCpuHandle = MaterialCvbHandle.CpuHandle;
+	MaterialCbvGpuHandle = MaterialCvbHandle.GpuHandle;
+	//MaterialCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
+	//MaterialCbvCpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
+	//MaterialCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
+	//MaterialCbvGpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
 	D3D12_CONSTANT_BUFFER_VIEW_DESC MaterialCbvDesc = {};
 	MaterialCbvDesc.BufferLocation = MaterialConstantBuffer->GetGPUVirtualAddress();
 	MaterialCbvDesc.SizeInBytes = MaterialConstantBufferSize;
@@ -432,6 +451,21 @@ void DXRender::InitMaterial()
 
 	Material* TestMaterial = new Material("TestMaterial", RootSignature, TestPsoDesc);
 
+    Material* MatGold = new Material("Mat_Gold", RootSignature, TestPsoDesc);
+    MatGold->SetConstantData({
+        {1.0f, 0.76f, 0.33f, 1.0f}, // Albedo (金黄色)
+        0.2f,                       // Roughness (光滑)
+        1.0f,                       // Metallic (金属)
+        1.0f, 0.0f                  // AO, Padding
+        });
+    Material* MatRedPlastic = new Material("Mat_Red", RootSignature, TestPsoDesc);
+    MatRedPlastic->SetConstantData({
+        {1.0f, 0.1f, 0.1f, 1.0f},   // Albedo (红)
+        0.5f,                       // Roughness (中等粗糙)
+        0.0f,                       // Metallic (非金属)
+        1.0f, 0.0f
+        });
+
 }
 
 void DXRender::CreateFence()
@@ -506,6 +540,15 @@ void DXRender::Draw()
             ObjectConstants objConstants;
             DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
             MeshElement->UpdateObjectConstantBuffer(objConstants);
+
+			auto MaterialName = MeshElement->GetMaterialName();
+            Material* MaterialPtr = MaterialManager::GetInstance().GetMaterialByName(MaterialName);
+            if (MaterialPtr)
+            {
+				MaterialPtr->Bind(CommandList.Get());
+				std::cout << "Binding Material: " << MaterialName << std::endl;
+
+            }
         }
         Timer::GetTimerInstance().StopNamedTimer("UpdateCB");
 
@@ -601,6 +644,32 @@ DXRender::~DXRender()
 DXRender::DXRender()
 {
     MainCamera.Init((float)Width, (float)Height);
+}
+
+DescriptorAllocation DXRender::AllocateDescriptorHandle(unsigned int DescriptorSize)
+{
+    if(CurrentSrvHeapIndex >= MAX_HEAP_SIZE)
+    {
+        throw std::runtime_error("Exceeded maximum descriptor heap size!");
+	}
+    // 计算 CPU 句柄 (用于创建资源)
+    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(
+        ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart(),
+        CurrentSrvHeapIndex,
+        DescriptorSize);
+
+    // 计算 GPU 句柄 (用于绑定 Shader)
+    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(
+        ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart(),
+        CurrentSrvHeapIndex,
+        DescriptorSize);
+
+	unsigned int RetIdx = CurrentSrvHeapIndex;
+
+    CurrentSrvHeapIndex++; // 指针后移
+
+    return { cpuHandle, gpuHandle, RetIdx };
+    //return std::pair<D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE>();
 }
 
 // DepthStencilBuffer

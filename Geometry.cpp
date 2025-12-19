@@ -61,6 +61,37 @@ void MeshBase::InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHe
 
 }
 
+void MeshBase::InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, DescriptorAllocation DescriptorAllocInfo)
+{
+    const UINT constantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
+
+    CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(constantBufferSize);
+
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &HeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &BufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&ObjectConstantBuffer)));
+
+    // 映射并初始化
+    CD3DX12_RANGE readRange(0, 0);
+    ThrowIfFailed(ObjectConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&ConstantBufferMappedData)));
+
+
+    // 计算这个 Mesh 在 Heap 中的 slot
+    CbvCpuHandle = DescriptorAllocInfo.CpuHandle;
+	CbvGpuHandle = DescriptorAllocInfo.GpuHandle;
+
+    // 创建CBV
+    D3D12_CONSTANT_BUFFER_VIEW_DESC CBVDesc = {};
+    CBVDesc.BufferLocation = ObjectConstantBuffer->GetGPUVirtualAddress();
+    CBVDesc.SizeInBytes = constantBufferSize;
+    Device->CreateConstantBufferView(&CBVDesc, CbvCpuHandle);
+}
+
 void MeshBase::UpdateObjectConstantBuffer(ObjectConstants& ObjConst)
 {
     memcpy(ConstantBufferMappedData, &ObjConst, sizeof(ObjConst));

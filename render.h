@@ -59,6 +59,9 @@ public:
     ~DXRender();
 
     Camera& GetMainCamera() { return MainCamera; }
+	unsigned int GetRtvDescriptorSize() { return RtvDescriptorSize; }
+    unsigned int GetDsvDescriptorSize() { return DsvDescriptorSize; }
+	unsigned int GetSrvUavDescriptorSize() { return SrvUavDescriptorSize; }
 
 private:
     DXRender();
@@ -81,6 +84,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> RenderTargets[FrameBufferCount];
     Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
     Microsoft::WRL::ComPtr<ID3DBlob> Signature;
+
+	int CurrentSrvHeapIndex = 0;
+	const unsigned int MAX_HEAP_SIZE = 100;
+    DescriptorAllocation AllocateDescriptorHandle(unsigned int DescriptorSize);
 
     // Constant Buffer View Heap
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ConstantBufferViewHeap;
@@ -135,6 +142,8 @@ private:
 
     //imgui
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ImguiSrvHeap = nullptr;
+
+    friend class Material;
 
 };
 

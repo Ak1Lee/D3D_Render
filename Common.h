@@ -2,6 +2,13 @@
 
 #include "MathHelper.h"
 #include <d3d12.h> 
+
+struct DescriptorAllocation
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle;
+    UINT Index;
+};
 // 常量缓冲区结构
 struct ObjectConstants
 {

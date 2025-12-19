@@ -9,6 +9,7 @@
 
 #include "DXRootSignature.h"
 #include <memory>
+#include "Common.h"
 
 class Material
 {
@@ -16,9 +17,12 @@ public:
 	Material(const std::string InName = "DefaultName", Microsoft::WRL::ComPtr<ID3D12RootSignature> InRootSig = nullptr, D3D12_GRAPHICS_PIPELINE_STATE_DESC InPipStateDesc = D3D12_GRAPHICS_PIPELINE_STATE_DESC());
 	void InitPSO();
 	void Init();
-	void Destroy() {
-		m_pso.Reset();
+	void Destroy();
+	void SetConstantData(const MaterialConstants& InConstantData) {
+		ConstantData = InConstantData;
+		bDirty = true;
 	}
+	void Bind(ID3D12GraphicsCommandList* CommandList);
 	
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> GetRootSignature() { return m_rootSignature; }
@@ -31,6 +35,16 @@ private:
 	std::string m_name;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc;
 	bool bInit = false;
+
+	// pbr
+	MaterialConstants ConstantData;
+	bool bDirty = true;
+	Microsoft::WRL::ComPtr<ID3D12Resource> ConstantBuffer;
+	UINT8* pCbvDataBegin = nullptr;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // 创建 View 用
+	D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind 用
+	unsigned int DescriptorIndex = 0;
 };
 
 class MaterialManager
@@ -46,6 +60,7 @@ class MaterialManager
 
 
 	Material& GetOrCreateMaterial(const std::string& name);
+	Material* GetMaterialByName(const std::string& name);
 
 	void AddMaterial(Material* InMaterial) {
 		Materials[InMaterial->GetName()] = std::shared_ptr<Material>(InMaterial);

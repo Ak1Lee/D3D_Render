@@ -21,7 +21,7 @@
 #include "DXDevice.h"
 #include "Common.h"
 
-
+class Material;
 class MeshBase
 {
 public:
@@ -62,9 +62,15 @@ public:
 	virtual void SetScale(float sx, float sy, float sz) { Scale = DirectX::XMFLOAT3(sx, sy, sz); };
 	virtual void SetScale(DirectX::XMFLOAT3 InScale) { Scale = InScale; };
 
-	// === 常量缓冲区 ===
+	// 常量缓冲区
 	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, UINT descriptorSize, UINT indexInHeap);
+	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, DescriptorAllocation DescriptorAllocInfo);
 	virtual void UpdateObjectConstantBuffer(ObjectConstants& ObjConst);
+
+	// 材质
+	virtual void SetMaterial(Material* InMaterialPtr) { MaterialPtr = InMaterialPtr; };
+	virtual void SetMaterialByName(const std::string& InMaterialName) { MaterialName = InMaterialName; };
+	std::string GetMaterialName() const { return MaterialName; };
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCbvCpuHandle() const { return CbvCpuHandle; };
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGbvCpuHandle() const { return CbvGpuHandle; };
@@ -104,6 +110,10 @@ protected:
 	unsigned int VertexBufferSize = 0;
 	unsigned int VertexCount = 0;
 	unsigned int IndexCount = 0;
+
+	// 材质
+	Material* MaterialPtr = nullptr;
+	std::string MaterialName;
 
 	// === 调试 ===
 	std::wstring Name = L"Unnamed Mesh";
