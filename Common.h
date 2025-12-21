@@ -13,6 +13,7 @@ struct DescriptorAllocation
 struct ObjectConstants
 {
 	DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 World = MathHelper::Identity4x4();
 };
 
 struct MaterialConstants
@@ -27,7 +28,7 @@ struct MaterialConstants
 // 光照常量缓冲区结构
 struct LightConstants
 {
-    DirectX::XMFLOAT3 LightDirection = { 1.f, 0.f, 0.f };
+    DirectX::XMFLOAT3 LightDirection = { 1.f, 1.f, 0.f };
     float LightIntensity = 1.0f;
 
     DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 1.0f };
@@ -38,6 +39,9 @@ struct LightConstants
 
     DirectX::XMFLOAT3 CameraPosition = { 0.0f, 0.0f, 0.0f };
     float _Padding3;
+
+	// Light View-Projection 矩阵，用于阴影映射
+    DirectX::XMFLOAT4X4 LightViewProj = MathHelper::Identity4x4();
 };
 
 // 顶点结构

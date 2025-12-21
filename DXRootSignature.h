@@ -25,6 +25,8 @@ public:
 	// Ìí¼ÓRoot Constant
 	void AddRootConstant(UINT shaderRegister, UINT num32BitValues, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
+	void AddStaticSampler(const D3D12_STATIC_SAMPLER_DESC& samplerDesc);
+
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> Build(ID3D12Device* device, D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 private:

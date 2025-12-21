@@ -73,7 +73,7 @@ public:
 	std::string GetMaterialName() const { return MaterialName; };
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCbvCpuHandle() const { return CbvCpuHandle; };
-	D3D12_GPU_DESCRIPTOR_HANDLE GetGbvCpuHandle() const { return CbvGpuHandle; };
+	D3D12_GPU_DESCRIPTOR_HANDLE GetCbvGpuHandle() const { return CbvGpuHandle; };
 
 	// debug
 	void SetName(const std::wstring& InName) { Name = InName; };

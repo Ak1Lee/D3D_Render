@@ -1,6 +1,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorldViewProj;
+    float4x4 gWorld;
 };
 cbuffer cbPerFrame : register(b1)
 {
@@ -15,6 +16,8 @@ cbuffer cbPerFrame : register(b1)
     
     float3 gCameraPos;
     float _Padding3;
+    
+    float4x4 gLightViewProj;
 };
 
 cbuffer MaterialCB : register(b2)
@@ -25,6 +28,10 @@ cbuffer MaterialCB : register(b2)
     float g_AO; // 环境光遮蔽
     float g_Padding; // 凑齐 16 字节对齐
 };
+
+Texture2D g_ShadowMap : register(t0); // 对应 Slot 3
+SamplerState g_samShadow : register(s0); // 比较采样器 (Comparison Sampler)
+
 
 struct VertexIn
 {
@@ -43,6 +50,8 @@ struct PSInput
     float3 tangent : TANGENT;
     float4 color : COLOR;
     float3 worldposition : WORLDPOSITION;
+    
+    float4 PosLightSpace : POSINLIGHT;
 };
 
 static const float PI = 3.14159265359;
@@ -96,7 +105,9 @@ PSInput VSMain(VertexIn In)
     output.color.rgb = In.Normal;
     output.color.rgb = g_Albedo.rgb;
     output.color.rgb = g_Albedo.rgb * dot(In.Normal, gLightDir) * 0.5 + 0.5;
-    output.worldposition = In.Position;
+    float4 posW = mul(float4(In.Position, 1.0f), gWorld);
+    output.worldposition = posW;
+    output.PosLightSpace = mul(posW, gLightViewProj);
     //gLightColor; // 简单光照调节
     return output;
 }
@@ -139,6 +150,31 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 color = ambient + Lo;
     
-    return float4(color, 1.0);;
+    
+    // Shadow
+    float3 ProjCoords = input.PosLightSpace.xyz / input.PosLightSpace.w;
+    ProjCoords.x = ProjCoords.x * 0.5 + 0.5;
+    ProjCoords.y = 1-(ProjCoords.y * 0.5 + 0.5);
+    // ProjCoords.z = ProjCoords.z * 0.5 + 0.5;
+
+    
+    float closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy).r;
+    float currentDepth = ProjCoords.z;
+    
+    float bias = 0.005;
+    float shadow = (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
+    
+    // float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+    float3 finalColor = color * (1-shadow);
+    // finalColor.r = closestDepth;
+    // finalColor.g = currentDepth;
+    
+    // finalColor.b = ProjCoords.x;
+    // finalColor.a = ProjCoords.y;
+    
+    
+    
+    // finalColor.rg = ProjCoords.xy;
+    return float4(finalColor, 1.0);;
     //return float4(N,1.0);
 }

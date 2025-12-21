@@ -1,6 +1,7 @@
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorldViewProj;
+    float4x4 gWorld;
 };
 cbuffer cbPerFrame : register(b1)
 {
@@ -15,6 +16,8 @@ cbuffer cbPerFrame : register(b1)
     
     float3 gCameraPos;
     float _Padding3;
+    
+    float4x4 gLightViewProj;
 };
 
 cbuffer MaterialCB : register(b2) 

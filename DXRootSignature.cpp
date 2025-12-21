@@ -44,6 +44,11 @@ void DXRootSignature::AddRootConstant(UINT shaderRegister, UINT num32BitValues, 
 	m_rootParameters.push_back(param);
 }
 
+void DXRootSignature::AddStaticSampler(const D3D12_STATIC_SAMPLER_DESC& samplerDesc)
+{
+	m_staticSamplers.push_back(samplerDesc);
+}
+
 Microsoft::WRL::ComPtr<ID3D12RootSignature> DXRootSignature::Build(ID3D12Device* device, D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
 	CD3DX12_ROOT_SIGNATURE_DESC RootSignatureDesc;
