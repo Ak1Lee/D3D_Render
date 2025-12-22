@@ -178,7 +178,7 @@ void DXRender::InitDX(HWND hWnd)
     DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
     //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
     BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
-    BoxPtr->SetMaterialByName("Mat_Red");
+    BoxPtr->SetMaterialByName("Mat_White");
 
 	MeshList.push_back(BoxPtr);
 
@@ -498,6 +498,13 @@ void DXRender::InitMaterial()
     Material* MatRedPlastic = new Material("Mat_Red", RootSignature, TestPsoDesc);
     MatRedPlastic->SetConstantData({
         {1.0f, 0.1f, 0.1f, 1.0f},   // Albedo (红)
+        0.5f,                       // Roughness (中等粗糙)
+        0.0f,                       // Metallic (非金属)
+        1.0f, 0.0f
+        });
+    Material* MatWhitePlastic = new Material("Mat_White", RootSignature, TestPsoDesc);
+    MatWhitePlastic->SetConstantData({
+        {0.8f, 0.8f, 0.8f, 1.0f},   // Albedo (红)
         0.5f,                       // Roughness (中等粗糙)
         0.0f,                       // Metallic (非金属)
         1.0f, 0.0f
