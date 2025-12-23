@@ -136,6 +136,9 @@ public:
 
 	void InitPasses();
 
+    void InitShadowMaskTexture();
+	void InitShadowMaskPSO();
+
 private:
     DXRender();
 
@@ -232,11 +235,20 @@ private:
     D3D12_VIEWPORT m_ShadowViewport;
     D3D12_RECT m_ShadowScissorRect;
 
+    // ShadowMask
+    Microsoft::WRL::ComPtr<ID3D12Resource> ShadowMaskTexture;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE ShadowMaskRTVHandle;
+	DescriptorAllocation ShadowMaskSRVHandle;
+
+
 
     // Pass
 
     RenderPass ShadowPass;
 	RenderPass MainPass;
+    RenderPass ShadowMaskPass;
+
+
 
     std::vector<RenderPass> RenderPasses;
 
