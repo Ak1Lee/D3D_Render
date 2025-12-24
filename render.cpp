@@ -71,7 +71,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     InitShadowPSO();
 	InitShadowMaskTexture();
     InitShadowMaskPSO();
-
+    InitZPrepassPSO();
 	InitPasses();
 
     // imgui - 在 InitDX 之后初始化
@@ -478,9 +478,14 @@ void DXRender::InitMaterial()
 
     TestPsoDesc.VS = { reinterpret_cast<BYTE*>(TESTVS->GetBufferPointer()), TESTVS->GetBufferSize() };
     TestPsoDesc.PS = { reinterpret_cast<BYTE*>(TESTPS->GetBufferPointer()), TESTPS->GetBufferSize() };
+
+    CD3DX12_DEPTH_STENCIL_DESC DepthDesc(D3D12_DEFAULT);
+    DepthDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	DepthDesc.DepthFunc = D3D12_COMPARISON_FUNC_EQUAL;
+
     TestPsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     TestPsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	TestPsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	TestPsoDesc.DepthStencilState = DepthDesc;
     TestPsoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     TestPsoDesc.SampleMask = UINT_MAX;
     TestPsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -526,6 +531,7 @@ void DXRender::Draw()
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
 
 	ShadowPass.Execute(CommandList.Get());
+	ZPrePass.Execute(CommandList.Get());
     MainPass.Execute(CommandList.Get());
 
     // --- Start ImGui Frame ---
@@ -814,8 +820,10 @@ void DXRender::InitPasses()
         // 添加清除渲染目标
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
         CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
-        CommandList->ClearDepthStencilView(CPU_DSV_Handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        // CommandList->ClearDepthStencilView(CPU_DSV_Handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
         CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &CPU_DSV_Handle);
+        //CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, nullptr);
+
         CommandList->RSSetViewports(1, &ScreenViewport);
         CommandList->RSSetScissorRects(1, &ScissorRect);
 
@@ -893,8 +901,9 @@ void DXRender::InitPasses()
                 D3D12_RESOURCE_STATE_RENDER_TARGET
             );
             float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            CommandList->ClearRenderTargetView(ShadowMaskRTVHandle, clearColor, 0, nullptr);
+            
             CommandList->ResourceBarrier(1, &Barrier_P2RT);
+            CommandList->ClearRenderTargetView(ShadowMaskRTVHandle, clearColor, 0, nullptr);
             D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
             CommandList->OMSetRenderTargets(1, &ShadowMaskRTVHandle, FALSE, &dsvHandle);
             CommandList->RSSetViewports(1, &ScreenViewport);
@@ -950,6 +959,47 @@ void DXRender::InitPasses()
             CommandList->ResourceBarrier(1, &Barrier_RT2P);
 
         };
+
+    ZPrePass.Name = "ZPrepass";
+
+    ZPrePass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
+            // ZPrepass implementation (similar to ShadowPass but for main camera)
+            // You can fill this in as needed
+
+			D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
+			CommandList->ClearDepthStencilView(DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+			CommandList->OMSetRenderTargets(0, nullptr, FALSE, &DsvHandle);
+
+            CommandList->RSSetViewports(1, &ScreenViewport);
+            CommandList->RSSetScissorRects(1, &ScissorRect);
+
+			CommandList->SetGraphicsRootSignature(RootSignature.Get());
+			CommandList->SetPipelineState(ZPrePass.PSO.Get());
+
+            for (auto MeshElement : MeshList)
+            {
+
+                // 更新常量缓冲区
+                auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
+                auto M_Matrix = MeshElement->GetWorldMatrix();
+                ObjectConstants objConstants;
+                DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
+                DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
+                MeshElement->UpdateObjectConstantBuffer(objConstants);
+
+                // cbv
+                CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
+                CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                auto VertexBufferView = MeshElement->GetVertexBufferView();
+                CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
+                auto IndexBufferView = MeshElement->GetIndexBufferView();
+                CommandList->IASetIndexBuffer(&IndexBufferView);
+
+                CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
+
+            }
+	    };
 
 }
 
@@ -1036,6 +1086,34 @@ void DXRender::InitShadowMaskPSO()
     psoDesc.SampleDesc.Count = 1;
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&ShadowMaskPass.PSO)));
 
+}
+
+void DXRender::InitZPrepassPSO()
+{
+    auto VsByte = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"ZPrepassVS", L"ZPrepassShader.hlsl", "VSMain", "vs_5_0"
+	)->GetBytecode();
+    auto PsByte = DXShaderManager::GetInstance().CreateOrFindShader(
+		L"ZPrepassPS", L"ZPrepassShader.hlsl", "PSMain", "ps_5_0"
+	)->GetBytecode();
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
+    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
+	psoDesc.VS = { reinterpret_cast<BYTE*>(VsByte->GetBufferPointer()), VsByte->GetBufferSize() };
+	psoDesc.PS = { reinterpret_cast<BYTE*>(PsByte->GetBufferPointer()), PsByte->GetBufferSize() };
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; // 必须匹配 InitDepthStencilBuffer 里的 dsvDesc
+    psoDesc.NumRenderTargets = 0; // 我们不输颜色
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.SampleDesc.Count = 1;
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&ZPrePass.PSO)));
 }
 
 DXRender::DXRender()

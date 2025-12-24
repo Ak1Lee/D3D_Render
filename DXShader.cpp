@@ -30,7 +30,32 @@ DXShader* DXShaderManager::CreateOrFindShader(const std::wstring& ShaderName, co
 #else
 		UINT compileFlags = 0;
 #endif
-		ThrowIfFailed(D3DCompileFromFile(FilePath.c_str(), nullptr, nullptr, EntryPoint.c_str(), Target.c_str(), compileFlags, 0, (ShaderPtr.get()->GetBytecodeAddress()), nullptr));
+
+
+		Microsoft::WRL::ComPtr<ID3DBlob> errors = nullptr;
+		HRESULT hr = D3DCompileFromFile(
+			FilePath.c_str(),
+			nullptr,
+			D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			EntryPoint.c_str(),
+			Target.c_str(),
+			compileFlags,
+			0,
+			(ShaderPtr.get()->GetBytecodeAddress()),    // 输出到这个临时变量
+			&errors       // 错误信息输出到这里
+		);
+
+		if (FAILED(hr))
+		{
+			if (errors)
+			{
+				std::string errorMsg(static_cast<const char*>(errors->GetBufferPointer()), errors->GetBufferSize());
+				OutputDebugStringA(errorMsg.c_str());
+			}
+			ThrowIfFailed(hr);
+		}
+
+		//ThrowIfFailed(D3DCompileFromFile(FilePath.c_str(), nullptr, nullptr, EntryPoint.c_str(), Target.c_str(), compileFlags, 0, (ShaderPtr.get()->GetBytecodeAddress()), nullptr));
 		ShaderCache[ShaderName] = ShaderPtr;
 		return ShaderPtr.get();
 	}

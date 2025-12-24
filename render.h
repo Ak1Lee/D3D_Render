@@ -139,6 +139,8 @@ public:
     void InitShadowMaskTexture();
 	void InitShadowMaskPSO();
 
+    void InitZPrepassPSO();
+
 private:
     DXRender();
 
@@ -247,6 +249,7 @@ private:
     RenderPass ShadowPass;
 	RenderPass MainPass;
     RenderPass ShadowMaskPass;
+	RenderPass ZPrePass;
 
 
 
