@@ -144,7 +144,7 @@ float4 PSMain(PSInput input) : SV_TARGET
             shadow += (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
         }
     }
-    shadow /= 9.0;
+    shadow /= 25.0;
     
     
     return float4(shadow, shadow, shadow, 1.0);

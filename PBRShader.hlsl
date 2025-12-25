@@ -30,6 +30,8 @@ cbuffer MaterialCB : register(b2)
 };
 
 Texture2D g_ShadowMap : register(t0); // 对应 Slot 3
+Texture2D g_ShadowMask : register(t1); // 对应 Slot 3
+
 SamplerState g_samShadow : register(s0); // 比较采样器 (Comparison Sampler)
 
 
@@ -151,47 +153,25 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 color = ambient + Lo;
     
     
-    // Shadow
-    float3 ProjCoords = input.PosLightSpace.xyz / input.PosLightSpace.w;
-    ProjCoords.x = ProjCoords.x * 0.5 + 0.5;
-    ProjCoords.y = 1-(ProjCoords.y * 0.5 + 0.5);
-    // ProjCoords.z = ProjCoords.z * 0.5 + 0.5;
+// 1. 获取当前像素的整数坐标 (SV_POSITION 本身就是屏幕坐标)
+// int3 的第三个参数是 mipmap level，通常填 0
+    int3 screenPos = int3(input.position.xy, 0);
 
+// 2. 直接从纹理加载数据 (Load 不需要采样器，也不会有浮点误差)
+    float shadowFactor = 1 - g_ShadowMask.Load(screenPos).r;
+
+// 3. 调试：直接输出看看 (如果是阴影区应该是0，亮部是1)
+    // return float4(shadowFactor, shadowFactor, shadowFactor, 1.0f);
     
-    float closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy).r;
-    float currentDepth = ProjCoords.z;
-    
-    float bias = 0.005;
-    
-    float2 texelSize = 1.0 / 2048.0;
-    float shadow = 0.0;
-    // PCF 3x3 循环
-    // 也就是采样当前像素周围一圈的 9 个点
-    for (int x = -2; x <= 2; ++x)
-    {
-        for (int y = -2; y <= 2; ++y)
-        {
-            // SampleCmpLevelZero 参数说明：
-            // 1. 采样器
-            // 2. 纹理坐标 (当前坐标 + 偏移量)
-            // 3. 比较值 (当前像素深度)
-            // 它会自动比较并返回 [0.0, 1.0] 之间的值 (0=黑, 1=亮, 中间值=边缘过度)
-            closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy + float2(x, y) * texelSize).r;
-            shadow += (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
-        }
-    }
-    shadow /= 9.0;
     
     
     // float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
-    float3 finalColor = color * (1-shadow);
+    float3 finalColor = color * shadowFactor;
     // finalColor.r = closestDepth;
     // finalColor.g = currentDepth;
     
     // finalColor.b = ProjCoords.x;
     // finalColor.a = ProjCoords.y;
-    
-    
     
     // finalColor.rg = ProjCoords.xy;
     return float4(finalColor, 1.0);;
