@@ -381,7 +381,9 @@ void DXRender::InitRootSignature()
     
 	//t0 shader resource view for texture
     //slot 3
-    rootSigBuilder.AddSRVDescriptorTable(0, D3D12_SHADER_VISIBILITY_PIXEL);
+    rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // t1 for shadow mask
+    rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
@@ -526,6 +528,7 @@ void DXRender::Draw()
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
 
 	ShadowPass.Execute(CommandList.Get());
+    ShadowMaskPass.Execute(CommandList.Get());
     MainPass.Execute(CommandList.Get());
 
     // --- Start ImGui Frame ---
@@ -582,7 +585,7 @@ void DXRender::Draw()
     CommandList->ResourceBarrier(1, &Barrier_RT2P);
 
 
-    ShadowMaskPass.Execute(CommandList.Get());
+
 
 
     ExecuteCommandAndWaitForComplete();
@@ -749,6 +752,9 @@ void DXRender::InitPasses()
         DirectX::XMMATRIX lightViewProj = lightView * lightProj;
 
         CommandList->SetGraphicsRootSignature(RootSignature.Get());
+        auto MainCameraPos = MainCamera.GetPosition();
+        LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
+
         // 将数据拷贝到 Map 好的内存中
         if (LightConstantBufferMappedData)
         {
@@ -848,6 +854,8 @@ void DXRender::InitPasses()
 
 		// shadow map SRV
         CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle);
+        // shadow mask SRV
+		CommandList->SetGraphicsRootDescriptorTable(4, ShadowMaskSRVHandle.GpuHandle);
 
         for (auto MeshElement : MeshList)
         {
@@ -892,9 +900,11 @@ void DXRender::InitPasses()
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                 D3D12_RESOURCE_STATE_RENDER_TARGET
             );
+            CommandList->ResourceBarrier(1, &Barrier_P2RT);
+
             float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
             CommandList->ClearRenderTargetView(ShadowMaskRTVHandle, clearColor, 0, nullptr);
-            CommandList->ResourceBarrier(1, &Barrier_P2RT);
+
             D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
             CommandList->OMSetRenderTargets(1, &ShadowMaskRTVHandle, FALSE, &dsvHandle);
             CommandList->RSSetViewports(1, &ScreenViewport);

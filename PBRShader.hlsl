@@ -30,6 +30,8 @@ cbuffer MaterialCB : register(b2)
 };
 
 Texture2D g_ShadowMap : register(t0); // 对应 Slot 3
+Texture2D g_ShadowMask : register(t1); // 对应 Slot 3
+
 SamplerState g_samShadow : register(s0); // 比较采样器 (Comparison Sampler)
 
 
@@ -191,7 +193,15 @@ float4 PSMain(PSInput input) : SV_TARGET
     // finalColor.b = ProjCoords.x;
     // finalColor.a = ProjCoords.y;
     
-    
+// 1. 获取当前像素的整数坐标 (SV_POSITION 本身就是屏幕坐标)
+// int3 的第三个参数是 mipmap level，通常填 0
+    int3 screenPos = int3(input.position.xy, 0);
+
+// 2. 直接从纹理加载数据 (Load 不需要采样器，也不会有浮点误差)
+    float shadowFactor = 1 - g_ShadowMask.Load(screenPos).r;
+
+// 3. 调试：直接输出看看 (如果是阴影区应该是0，亮部是1)
+    return float4(shadowFactor, shadowFactor, shadowFactor, 1.0f);
     
     // finalColor.rg = ProjCoords.xy;
     return float4(finalColor, 1.0);;
