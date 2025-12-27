@@ -181,6 +181,16 @@ void DXRender::InitDX(HWND hWnd)
     //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
     BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
     BoxPtr->SetMaterialByName("Mat_White");
+    MeshList.push_back(BoxPtr);
+
+    BoxPtr = new Box();
+    BoxPtr->SetPosition(0.0f, -10.0f, -3.0f);
+    BoxPtr->SetScale(0.5f, 15.f, 0.5f);
+    BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+    AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+    BoxPtr->SetMaterialByName("Mat_Red");
 
 	MeshList.push_back(BoxPtr);
 
@@ -388,9 +398,9 @@ void DXRender::InitRootSignature()
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     sampler.MipLODBias = 0;
     sampler.MaxAnisotropy = 0;
     sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
@@ -401,6 +411,23 @@ void DXRender::InitRootSignature()
     sampler.RegisterSpace = 0;
     sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootSigBuilder.AddStaticSampler(sampler);
+
+    D3D12_STATIC_SAMPLER_DESC samplerShadow = {};
+    samplerShadow.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT; // 开启比较 + 线性滤波
+    samplerShadow.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.MipLODBias = 0;
+    samplerShadow.MaxAnisotropy = 0;
+    samplerShadow.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL; // 小于等于则为亮
+    samplerShadow.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerShadow.MinLOD = 0.0f;
+    samplerShadow.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerShadow.ShaderRegister = 1; // 绑定到 s1
+    samplerShadow.RegisterSpace = 0;
+    samplerShadow.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    rootSigBuilder.AddStaticSampler(samplerShadow);
 
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
@@ -569,6 +596,8 @@ void DXRender::Draw()
         {
 			MaterialConstantInstance.Roughness = Roughness;
         }
+		// light size for PCSS
+        ImGui::SliderFloat("Light Size (PCSS)", &LightConstantInstance.LightSize, 0.0f, 5.0f);
 
         ImGui::End();
     }

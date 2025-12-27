@@ -9,7 +9,7 @@ cbuffer cbPerFrame : register(b1)
     float gLightIntensity;
     
     float3 gLightColor;
-    float _Padding1;
+    float gLightSize;
     
     float3 gAmbientColor;
     float _Padding2;

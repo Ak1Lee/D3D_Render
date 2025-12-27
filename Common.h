@@ -32,7 +32,7 @@ struct LightConstants
     float LightIntensity = 1.0f;
 
     DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 1.0f };
-    float _Padding1;
+    float LightSize = 1.0f; // light ŒÔ¿Ì≥ﬂ¥Á
 
     DirectX::XMFLOAT3 AmbientColor = { 0.1f, 0.1f, 0.1f };
     float _Padding2;

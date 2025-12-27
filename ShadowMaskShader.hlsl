@@ -9,7 +9,7 @@ cbuffer cbPerFrame : register(b1)
     float gLightIntensity;
     
     float3 gLightColor;
-    float _Padding1;
+    float gLightSize;
     
     float3 gAmbientColor;
     float _Padding2;
@@ -22,16 +22,149 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ÑÕÉ«
-    float g_Roughness; // ´Ö²Ú¶È
-    float g_Metallic; // ½ðÊô¶È
-    float g_AO; // »·¾³¹âÕÚ±Î
-    float g_Padding; // ´ÕÆë 16 ×Ö½Ú¶ÔÆë
+    float4 g_Albedo; // ï¿½ï¿½É«
+    float g_Roughness; // ï¿½Ö²Ú¶ï¿½
+    float g_Metallic; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    float g_AO; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½
+    float g_Padding; // ï¿½ï¿½ï¿½ï¿½ 16 ï¿½Ö½Ú¶ï¿½ï¿½ï¿½
 };
 
-Texture2D g_ShadowMap : register(t0); // ¶ÔÓ¦ Slot 3
-SamplerState g_samShadow : register(s0); // ±È½Ï²ÉÑùÆ÷ (Comparison Sampler)
+Texture2D g_ShadowMap : register(t0); // ï¿½ï¿½Ó¦ Slot 3
+SamplerState g_samShadow : register(s0); 
+SamplerComparisonState g_samShadowCompare : register(s1);
 
+static const float2 poissonDisk[16] =
+{
+    //float2(0.0, 0.0),
+    float2(-0.94201624, -0.39906216),
+    float2(0.94558609, -0.76890725),
+    float2(-0.094184101, -0.92938870),
+    float2(0.34495938, 0.29387760),
+    float2(-0.91588581, 0.45771432),
+    float2(-0.81544232, -0.87912464),
+    float2(-0.38277543, 0.27676845),
+    float2(0.97484398, 0.75648379),
+    float2(0.44323325, -0.97511554),
+    float2(0.53742981, -0.47371072),
+    float2(-0.26496911, -0.41893023),
+    float2(0.79197514, 0.19090188),
+    float2(-0.24188840, 0.99706507),
+    float2(-0.81409955, 0.91437590),
+    float2(0.19984126, 0.78641367),
+    float2(0.14383161, -0.14100790)
+};
+float Rand(float2 co)
+{
+    return frac(sin(dot(co.xy, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+
+void FindBlocker(float2 uv, float zReceiver, float SearchRadius, out float avgBlockerDepth, out float numBlockers)
+{
+    avgBlockerDepth = 0.0;
+    numBlockers = 0.0;
+    
+    float Noise = Rand(uv*100.0f);
+    float s = sin(Noise * 6.28);
+    float c = cos(Noise * 6.28);
+    float2x2 RotationMatrix = float2x2(c, -s, s, c);
+    
+    float zSample00 = g_ShadowMap.Sample(g_samShadow, uv).r;
+    //if (zSample00 < zReceiver - 0.005)
+    
+    for(int i = 0; i < 16; ++i)
+    {
+        float2 offset = mul(RotationMatrix, poissonDisk[i]) * SearchRadius;
+        float2 sampleUV = uv + offset;
+        float zSample = g_ShadowMap.Sample(g_samShadow, sampleUV).r;
+        
+            if (zSample < zReceiver + 0.005)
+        {
+            avgBlockerDepth += zSample;
+            numBlockers+=1.0;
+        }
+    }
+    
+    if(numBlockers > 0)
+    {
+        avgBlockerDepth /= numBlockers;
+        // avgBlockerDepth /= 16;
+    }
+}
+float PCSS(float4 posLightSpace, out float3 debugMessage)
+{
+    debugMessage = float3(1.0,1.0,1.0);
+    float3 ProjCoords = posLightSpace.xyz / posLightSpace.w;
+    float2 uv = ProjCoords.xy * 0.5 + 0.5;
+    uv.y = 1.0 - uv.y;
+    
+    float zRec = ProjCoords.z;
+    
+    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+        return 1.0;
+    
+    float SearchRadius =  (1.0 / 2048.0) * 16.0;
+    
+    float AvgBlockerDepth = 0;
+    float NumBlockers = 0;
+    
+    FindBlocker(uv, zRec, SearchRadius, AvgBlockerDepth, NumBlockers);
+    
+    if(NumBlockers < 1.0)
+        return 1.0;
+
+    
+    //return (NumBlockers / 16.0);
+    
+    float PenumbraDepth = (zRec - AvgBlockerDepth);
+    
+    //if (PenumbraDepth < 0.001)return 0.0; else PenumbraDepth = PenumbraDepth - 0.001;
+    float PenumbraRatio = PenumbraDepth * 1.0;
+    // return PenumbraRatio;
+    float PenumbraSize = PenumbraRatio * gLightSize*0.1;
+    debugMessage.r = PenumbraSize * 20;
+//    if (PenumbraSize < 0.02)
+ //       return 0.0;
+    
+    
+    
+    PenumbraSize = clamp(PenumbraSize, 0.0, 0.3);
+    // return PenumbraSize;
+    
+
+        
+    
+    // PCF
+    float ShadowVis = 0.0;
+    float Noise = Rand(uv * 100.0f);
+    float s = sin(Noise * 6.28);
+    float c = cos(Noise * 6.28);
+    float2x2 RotationMatrix = float2x2(c, -s, s, c);
+    float bias = 0.001;
+    for(int i = 0; i < 16; ++i)
+    {
+        float2 offset = mul(RotationMatrix, poissonDisk[i]) * PenumbraSize;
+        float2 sampleUV = uv + offset;
+        float zSample = g_ShadowMap.Sample(g_samShadow, sampleUV).r;
+
+//        ShadowVis += g_ShadowMap.SampleCmpLevelZero(
+//            g_samShadowCompare,
+//            sampleUV,
+//            zRec - bias
+//        );
+
+        float isLit = (zSample >= zRec - bias) ? 1.0 : 0.0;
+
+
+        ShadowVis += isLit;
+
+    }
+    // return PenumbraSize;
+    // return PenumbraSize * 50.0;
+    debugMessage.g = ShadowVis / 16.0;
+    return ShadowVis / 16.0;
+    
+}
 
 struct VertexIn
 {
@@ -72,7 +205,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r * r) / 8.0; // Ö±½Ó¹âÕÕÏÂµÄkÖµ¼ÆËã
+    float k = (r * r) / 8.0; // Ö±ï¿½Ó¹ï¿½ï¿½ï¿½ï¿½Âµï¿½kÖµï¿½ï¿½ï¿½ï¿½
 
     float nom = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -108,45 +241,60 @@ PSInput VSMain(VertexIn In)
     float4 posW = mul(float4(In.Position, 1.0f), gWorld);
     output.worldposition = posW;
     output.PosLightSpace = mul(posW, gLightViewProj);
-    //gLightColor; // ¼òµ¥¹âÕÕµ÷½Ú
+    //gLightColor; // ï¿½òµ¥¹ï¿½ï¿½Õµï¿½ï¿½ï¿½
     return output;
 }
 
-float4 PSMain(PSInput input) : SV_TARGET
-{
+// PCF
+// float4 PSMain(PSInput input) : SV_TARGET
+// {
     
-    // Shadow
-    float3 ProjCoords = input.PosLightSpace.xyz / input.PosLightSpace.w;
-    ProjCoords.x = ProjCoords.x * 0.5 + 0.5;
-    ProjCoords.y = 1-(ProjCoords.y * 0.5 + 0.5);
-    // ProjCoords.z = ProjCoords.z * 0.5 + 0.5;
+//     // Shadow
+//     float3 ProjCoords = input.PosLightSpace.xyz / input.PosLightSpace.w;
+//     ProjCoords.x = ProjCoords.x * 0.5 + 0.5;
+//     ProjCoords.y = 1-(ProjCoords.y * 0.5 + 0.5);
+//     // ProjCoords.z = ProjCoords.z * 0.5 + 0.5;
 
     
-    float closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy).r;
-    float currentDepth = ProjCoords.z;
+//     float closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy).r;
+//     float currentDepth = ProjCoords.z;
     
-    float bias = 0.005;
+//     float bias = 0.005;
     
-    float2 texelSize = 1.0 / 2048.0;
-    float shadow = 0.0;
-    // PCF 3x3 Ñ­»·
-    // Ò²¾ÍÊÇ²ÉÑùµ±Ç°ÏñËØÖÜÎ§Ò»È¦µÄ 9 ¸öµã
-    for (int x = -2; x <= 2; ++x)
-    {
-        for (int y = -2; y <= 2; ++y)
-        {
-            // SampleCmpLevelZero ²ÎÊýËµÃ÷£º
-            // 1. ²ÉÑùÆ÷
-            // 2. ÎÆÀí×ø±ê (µ±Ç°×ø±ê + Æ«ÒÆÁ¿)
-            // 3. ±È½ÏÖµ (µ±Ç°ÏñËØÉî¶È)
-            // Ëü»á×Ô¶¯±È½Ï²¢·µ»Ø [0.0, 1.0] Ö®¼äµÄÖµ (0=ºÚ, 1=ÁÁ, ÖÐ¼äÖµ=±ßÔµ¹ý¶È)
-            closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy + float2(x, y) * texelSize).r;
-            shadow += (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
-        }
-    }
-    shadow /= 25.0;
+//     float2 texelSize = 1.0 / 2048.0;
+//     float shadow = 0.0;
+//     // PCF 3x3 Ñ­ï¿½ï¿½
+//     // Ò²ï¿½ï¿½ï¿½Ç²ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î§Ò»È¦ï¿½ï¿½ 9 ï¿½ï¿½ï¿½ï¿½
+//     for (int x = -2; x <= 2; ++x)
+//     {
+//         for (int y = -2; y <= 2; ++y)
+//         {
+//             // SampleCmpLevelZero ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½
+//             // 1. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+//             // 2. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ + Æ«ï¿½ï¿½ï¿½ï¿½)
+//             // 3. ï¿½È½ï¿½Öµ (ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
+//             // ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½È½Ï²ï¿½ï¿½ï¿½ï¿½ï¿½ [0.0, 1.0] Ö®ï¿½ï¿½ï¿½Öµ (0=ï¿½ï¿½, 1=ï¿½ï¿½, ï¿½Ð¼ï¿½Öµ=ï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½)
+//             closestDepth = g_ShadowMap.Sample(g_samShadow, ProjCoords.xy + float2(x, y) * texelSize).r;
+//             shadow += (currentDepth - bias) > closestDepth ? 0.0 : 1.0;
+//         }
+//     }
+//     shadow /= 25.0;
     
     
+//     return float4(shadow, shadow, shadow, 1.0);
+//     // return float4(1.0, 0.0, 0.0, 1.0);
+    
+// }
+
+// PCSS
+float4 PSMain(PSInput input) : SV_TARGET
+{
+    float3 debugMessage = 0.0;
+    
+    float shadow = PCSS(input.PosLightSpace, debugMessage);
+    //shadow = 1 - shadow;
+    
+    //return float4(debugMessage, 1.0);
     return float4(shadow, shadow, shadow, 1.0);
     // return float4(1.0, 0.0, 0.0, 1.0);
     

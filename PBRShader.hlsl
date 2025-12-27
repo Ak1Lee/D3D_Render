@@ -158,7 +158,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     int3 screenPos = int3(input.position.xy, 0);
 
 // 2. 直接从纹理加载数据 (Load 不需要采样器，也不会有浮点误差)
-    float shadowFactor = 1 - g_ShadowMask.Load(screenPos).r;
+    float shadowFactor = g_ShadowMask.Load(screenPos).r;
 
 // 3. 调试：直接输出看看 (如果是阴影区应该是0，亮部是1)
     // return float4(shadowFactor, shadowFactor, shadowFactor, 1.0f);
