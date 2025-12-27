@@ -78,7 +78,7 @@ void FindBlocker(float2 uv, float zReceiver, float SearchRadius, out float avgBl
         float2 sampleUV = uv + offset;
         float zSample = g_ShadowMap.Sample(g_samShadow, sampleUV).r;
         
-            if (zSample < zReceiver + 0.005)
+            if (zSample < zReceiver + 0.00)
         {
             avgBlockerDepth += zSample;
             numBlockers+=1.0;
