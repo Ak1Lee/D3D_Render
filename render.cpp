@@ -1260,12 +1260,81 @@ GraphicsPSOBuilder& GraphicsPSOBuilder::SetShaders(const std::wstring& vsName, c
     return *this;
 }
 
-void Texture::LoadFromFile(std::string Filename, bool isRGB)
+void Texture::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB)
 {
+
+    // texture->cpu->gpu and destory on cpu
+	auto device = Device::GetInstance().GetD3DDevice();
+
+
+    int NrComponent;
+	unsigned char* Data = stbi_load(
+		Filename.c_str(),
+		&Width,
+		&Height,
+		&NrComponent,
+		4
+	);
+
+    if (!Data)
+    {
+        return;
+    }
+	Format = isRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
+
+    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 4, Resource, UploadHeap);
+	stbi_image_free(Data);
+
+    auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
+    Handle = DXRender::GetInstance().AllocateDescriptorHandle(size);
+
+    // SRV
+	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+	SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	SrvDesc.Format = Format;
+	SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    SrvDesc.Texture2D.MipLevels = 1;
+
+    device->CreateShaderResourceView(Resource.Get(), &SrvDesc, Handle.CpuHandle);
+
 }
 
-void Texture::LoadHDRFromFile(std::string Filename)
+void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename)
 {
+    // texture->cpu->gpu and destory on cpu
+    auto device = Device::GetInstance().GetD3DDevice();
+
+
+    int NrComponent;
+    unsigned char* Data = stbi_load(
+        Filename.c_str(),
+        &Width,
+        &Height,
+        &NrComponent,
+        4
+    );
+
+    if (!Data)
+    {
+        return;
+    }
+    Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 4, Resource, UploadHeap);
+    stbi_image_free(Data);
+
+    auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
+    Handle = DXRender::GetInstance().AllocateDescriptorHandle(size);
+
+    // SRV
+    D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+    SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    SrvDesc.Format = Format;
+    SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    SrvDesc.Texture2D.MipLevels = 1;
+
+    device->CreateShaderResourceView(Resource.Get(), &SrvDesc, Handle.CpuHandle);
+
 }
 
 void Texture::Release()
@@ -1275,4 +1344,52 @@ void Texture::Release()
 
     Width = 0;
     Height = 0;
+}
+
+void Texture::CreateTextureResource(ID3D12Device* device, ID3D12GraphicsCommandList* CmdList, const void* InData, int Width, int Height, DXGI_FORMAT Format, int PixelByteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& OutResource, Microsoft::WRL::ComPtr<ID3D12Resource>& OutUploadHeap)
+{
+    D3D12_RESOURCE_DESC Desc = {};
+    Desc.MipLevels = 1;
+	Desc.Format = Format;
+	Desc.Width = Width;
+	Desc.Height = Height;
+	Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	Desc.DepthOrArraySize = 1;
+	Desc.SampleDesc.Count = 1;
+    Desc.SampleDesc.Quality = 0;
+	Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+	CD3DX12_HEAP_PROPERTIES DefaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+	ThrowIfFailed(device->CreateCommittedResource(
+		&DefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&Desc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&OutResource)
+	));
+	OutResource->SetName(L"Texture Resource");
+	const UINT64 UploadBufferSize = GetRequiredIntermediateSize(OutResource.Get(), 0, 1);
+	CD3DX12_HEAP_PROPERTIES UploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+	CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(UploadBufferSize);
+	ThrowIfFailed(device->CreateCommittedResource(
+		&UploadHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&BufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&OutUploadHeap)
+	));
+	OutUploadHeap->SetName(L"Texture Upload Heap");
+	D3D12_SUBRESOURCE_DATA TextureData = {};
+	TextureData.pData = InData;
+	TextureData.RowPitch = Width * PixelByteSize;
+	TextureData.SlicePitch = TextureData.RowPitch * Height;
+	UpdateSubresources(CmdList, OutResource.Get(), OutUploadHeap.Get(), 0, 0, 1, &TextureData);
+	CD3DX12_RESOURCE_BARRIER Barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		OutResource.Get(),
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
+	);
+	CmdList->ResourceBarrier(1, &Barrier);
 }
