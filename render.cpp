@@ -14,6 +14,9 @@
 #include "imgui/backends/imgui_impl_win32.h"
 #include "imgui/backends/imgui_impl_dx12.h"
 
+//tex load
+#include "stb_image.h"
+
 
 
 
@@ -1255,4 +1258,21 @@ GraphicsPSOBuilder& GraphicsPSOBuilder::SetShaders(const std::wstring& vsName, c
         m_Desc.PS = { nullptr, 0 };
     }
     return *this;
+}
+
+void Texture::LoadFromFile(std::string Filename, bool isRGB)
+{
+}
+
+void Texture::LoadHDRFromFile(std::string Filename)
+{
+}
+
+void Texture::Release()
+{
+    Resource.Reset();
+    UploadHeap.Reset();
+
+    Width = 0;
+    Height = 0;
 }

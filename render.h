@@ -33,6 +33,41 @@ struct RenderPass
     std::function<void(ID3D12GraphicsCommandList*)> Execute;
 };
 
+class Texture
+{
+
+public:
+	Texture(const std::string& InName) : Name(InName) {}
+    ~Texture(){ Release(); }
+
+
+    void LoadFromFile(std::string Filename, bool isRGB = false);
+
+    void LoadHDRFromFile(std::string Filename);
+
+    void Release();
+
+	ID3D12Resource* GetResource() { return Resource.Get(); }
+
+	int GetDescriptorHeapIndex()const { return Handle.Index; }
+
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle() const { return Handle.CpuHandle; }
+
+private:
+    std::string Name;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
+
+    Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap;
+
+    DescriptorAllocation Handle;
+
+    int Width = 0;
+    int Height = 0;
+
+    DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+};
+
 class GraphicsPSOBuilder
 {
 public:
