@@ -15,6 +15,7 @@
 #include "imgui/backends/imgui_impl_dx12.h"
 
 //tex load
+#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 
