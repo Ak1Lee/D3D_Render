@@ -1311,7 +1311,7 @@ void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Fi
 
 
     int NrComponent;
-    unsigned char* Data = stbi_load(
+    float* Data = stbi_loadf(
         Filename.c_str(),
         &Width,
         &Height,
