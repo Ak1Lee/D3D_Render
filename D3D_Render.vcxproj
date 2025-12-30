@@ -170,6 +170,7 @@
     <ClInclude Include="MathHelper.h" />
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="render.h" />
+    <ClInclude Include="stb_image.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -7,7 +7,7 @@ struct DescriptorAllocation
 {
     D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle;
-    UINT Index;
+    UINT Index = -1;
 };
 // 常量缓冲区结构
 struct ObjectConstants
