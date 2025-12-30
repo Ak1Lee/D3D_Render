@@ -77,6 +77,10 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     InitShadowMaskPSO();
     InitZPrepassPSO();
 	InitPasses();
+	Texture HDRTex("puresky");
+	HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
+
+    
 
     // imgui - 在 InitDX 之后初始化
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -1321,7 +1325,7 @@ void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Fi
     }
     Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 
-    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 4, Resource, UploadHeap);
+    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 16, Resource, UploadHeap);
     stbi_image_free(Data);
 
     auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
