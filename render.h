@@ -53,6 +53,8 @@ public:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle() const { return Handle.CpuHandle; }
 
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle() const { return Handle.GpuHandle; }
+
 private:
     std::string Name;
 
@@ -186,6 +188,12 @@ public:
 
     void InitZPrepassPSO();
 
+    //csTest
+    //todo 
+	void InitComputeRootSignature();
+    void ComputeCubemap();
+	void InitEnvCubeMap();
+
 private:
     DXRender();
 
@@ -300,6 +308,16 @@ private:
 
 
     std::vector<RenderPass> RenderPasses;
+
+	//compute shader
+    // CD3DX12_DESCRIPTOR_RANGE CSSrvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeRootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePipelineState;
+
+    Texture HDRTex = Texture( "puresky" );
+    Microsoft::WRL::ComPtr<ID3D12Resource> EnvCubeMap;
+    DescriptorAllocation EnvCubeUAVHandle;
+    DescriptorAllocation EnvCubeSRVHandle;
 
 };
 

@@ -77,8 +77,12 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     InitShadowMaskPSO();
     InitZPrepassPSO();
 	InitPasses();
-	Texture HDRTex("puresky");
+	InitEnvCubeMap();
+	
+    ThrowIfFailed(CommandAllocator->Reset());
+    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
 	HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
+    ExecuteCommandAndWaitForComplete();
 
     
 
@@ -128,6 +132,9 @@ void DXRender::InitDX(HWND hWnd)
 
 
     InitRootSignature();
+
+    InitComputeRootSignature();
+
     CompileShader();
 
 
@@ -440,6 +447,137 @@ void DXRender::InitRootSignature()
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
+void DXRender::InitComputeRootSignature()
+{
+    CD3DX12_DESCRIPTOR_RANGE srvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0
+    CD3DX12_DESCRIPTOR_RANGE uavRange(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // u0
+
+    DXRootSignature rootSigBuilder;
+    // t0
+	rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+    // u0 CubeMap Output
+    rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+
+    D3D12_STATIC_SAMPLER_DESC LinearSampler = {};
+	LinearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	LinearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	LinearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    LinearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+
+	LinearSampler.MipLODBias = 0;
+	LinearSampler.MaxAnisotropy = 16;
+	LinearSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    LinearSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+
+	LinearSampler.MinLOD = 0.0f;
+	LinearSampler.MaxLOD = D3D12_FLOAT32_MAX;
+	LinearSampler.ShaderRegister = 0; // s0
+	LinearSampler.RegisterSpace = 0;
+	LinearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+
+    rootSigBuilder.AddStaticSampler(LinearSampler);
+
+	ComputeRootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
+
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.pRootSignature = ComputeRootSignature.Get();
+	auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"TestCS", L"Equirect2Cube.hlsl", "CSMain", "cs_5_0");
+	psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
+	Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputePipelineState));
+
+}
+
+void DXRender::ComputeCubemap()
+{
+	CommandList->SetPipelineState(ComputePipelineState.Get());
+	CommandList->SetComputeRootSignature(ComputeRootSignature.Get());
+    ID3D12DescriptorHeap* ppHeaps[] = { ConstantBufferViewHeap.Get() };
+    CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+    CD3DX12_RESOURCE_BARRIER Inbarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        EnvCubeMap.Get(),
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+    );
+    CommandList->ResourceBarrier(1, &Inbarrier);
+	// 设置描述符堆
+	CommandList->SetComputeRootDescriptorTable(0, HDRTex.GetGpuHandle());
+
+	CommandList->SetComputeRootDescriptorTable(1, EnvCubeUAVHandle.GpuHandle);
+
+	CommandList->Dispatch(1024 / 32, 1024 / 32, 6); // 每个线程组处理16x16像素
+
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        EnvCubeMap.Get(),
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // 刚才在写
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE // 待会要读
+    );
+
+    CommandList->ResourceBarrier(1, &barrier);
+    // ExecuteCommandAndWaitForComplete();
+}
+
+void DXRender::InitEnvCubeMap()
+{
+    auto device = Device::GetInstance().GetD3DDevice();
+
+    D3D12_RESOURCE_DESC TexDesc = {};
+    TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    TexDesc.Width = 1024; // Cubemap 每个面的大小，通常 1024 或 512
+    TexDesc.Height = 1024;
+    TexDesc.DepthOrArraySize = 6; // 【关键】6 表示这是一个立方体 (6个面)
+    TexDesc.MipLevels = 1;        // 目前先只做 Level 0
+    TexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // HDR 格式 (半精度浮点足够了)
+    TexDesc.SampleDesc.Count = 1;
+    TexDesc.SampleDesc.Quality = 0;
+    TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    //允许 Unordered Access (UAV)
+    TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	CD3DX12_HEAP_PROPERTIES HeapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+    ThrowIfFailed(device->CreateCommittedResource(
+        &HeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &TexDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // UAV 需要这个状态
+        nullptr,
+        IID_PPV_ARGS(&EnvCubeMap)
+	));
+	EnvCubeMap->SetName(L"Environment CubeMap");
+
+    // uav
+	EnvCubeUAVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = TexDesc.Format;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+    uavDesc.Texture2DArray.MipSlice = 0;
+    uavDesc.Texture2DArray.FirstArraySlice = 0;
+    uavDesc.Texture2DArray.ArraySize = 6;
+    device->CreateUnorderedAccessView(
+        EnvCubeMap.Get(),
+        nullptr,
+        &uavDesc,
+        EnvCubeUAVHandle.CpuHandle
+	);
+
+    //srv
+	EnvCubeSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = TexDesc.Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+    srvDesc.TextureCube.MostDetailedMip = 0;
+    srvDesc.TextureCube.MipLevels = TexDesc.MipLevels;
+    srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    device->CreateShaderResourceView(
+        EnvCubeMap.Get(),
+        &srvDesc,
+        EnvCubeSRVHandle.CpuHandle
+	);
+}
 
 void DXRender::CompileShader()
 {
@@ -565,6 +703,8 @@ void DXRender::Draw()
 {
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
+    ComputeCubemap();
+
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
     ZPrePass.Execute(CommandList.Get());
 	ShadowPass.Execute(CommandList.Get());
@@ -1174,6 +1314,8 @@ void DXRender::InitZPrepassPSO()
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&ZPrePass.PSO)));
 }
 
+
+
 DXRender::DXRender()
 {
     MainCamera.Init((float)Width, (float)Height);
@@ -1321,6 +1463,9 @@ void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Fi
 
     if (!Data)
     {
+        OutputDebugStringA("ERROR: Failed to load HDR texture: ");
+        OutputDebugStringA(Filename.c_str());
+        OutputDebugStringA("\n");
         return;
     }
     Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
