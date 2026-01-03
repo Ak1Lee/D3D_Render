@@ -15,7 +15,7 @@
 #include "imgui/backends/imgui_impl_dx12.h"
 
 //tex load
-#define STB_IMAGE_IMPLEMENTATION
+// #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 
@@ -76,11 +76,14 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	InitShadowMaskTexture();
     InitShadowMaskPSO();
     InitZPrepassPSO();
+	InitSkyPassPSO();
 	InitPasses();
-	InitEnvCubeMap();
 	
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
+    
+    // InitEnvCubeMap 需要 CommandList 处于打开状态
+    InitEnvCubeMap();
 	HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
     ExecuteCommandAndWaitForComplete();
 
@@ -444,6 +447,22 @@ void DXRender::InitRootSignature()
 
     rootSigBuilder.AddStaticSampler(samplerShadow);
 
+    D3D12_STATIC_SAMPLER_DESC samplerLinear = {};
+    samplerLinear.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 线性
+    samplerLinear.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerLinear.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerLinear.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    samplerLinear.MipLODBias = 0;
+    samplerLinear.MaxAnisotropy = 16;
+    samplerLinear.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerLinear.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerLinear.MinLOD = 0.0f;
+    samplerLinear.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerLinear.ShaderRegister = 2; // <--- 关键：绑定到 s2
+    samplerLinear.RegisterSpace = 0;
+    samplerLinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootSigBuilder.AddStaticSampler(samplerLinear);
+
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
@@ -577,6 +596,72 @@ void DXRender::InitEnvCubeMap()
         &srvDesc,
         EnvCubeSRVHandle.CpuHandle
 	);
+
+
+    // sky box
+	SkyboxMesh = new Box();
+	SkyboxMesh->SetScale(1.0f, 1.0f, 1.0f);
+    SkyboxMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+    DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    SkyboxMesh->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+
+
+
+}
+
+void DXRender::InitIrradianceMap()
+{
+    auto device = Device::GetInstance().GetD3DDevice();
+
+    D3D12_RESOURCE_DESC TexDesc = {};
+    TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    TexDesc.Width = 32; // Cubemap 每个面的大小，通常 1024 或 512
+    TexDesc.Height = 32;
+    TexDesc.DepthOrArraySize = 6; // 【关键】6 表示这是一个立方体 (6个面)
+    TexDesc.MipLevels = 1;        // 目前先只做 Level 0
+    TexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // HDR 格式 (半精度浮点足够了)
+    TexDesc.SampleDesc.Count = 1;
+    TexDesc.SampleDesc.Quality = 0;
+    TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    //允许 Unordered Access (UAV)
+    TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+    CD3DX12_HEAP_PROPERTIES HeapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+    ThrowIfFailed(device->CreateCommittedResource(
+        &HeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &TexDesc,
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // UAV 需要这个状态
+        nullptr,
+        IID_PPV_ARGS(&IrradianceMap)
+    ));
+	IrradianceMapSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+    SrvDesc.Format = TexDesc.Format;
+	SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+	SrvDesc.TextureCube.MipLevels = 1;
+	SrvDesc.TextureCube.MostDetailedMip = 0;
+	SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    device->CreateShaderResourceView(
+        IrradianceMap.Get(),
+        &SrvDesc,
+        IrradianceMapSRVHandle.CpuHandle
+	);
+
+	IrradianceMapUAVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+	uavDesc.Format = TexDesc.Format;
+	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+    uavDesc.Texture2DArray.ArraySize = 6;
+    device->CreateUnorderedAccessView(
+        IrradianceMap.Get(),
+        nullptr,
+        &uavDesc,
+        IrradianceMapUAVHandle.CpuHandle
+	);
+
+
 }
 
 void DXRender::CompileShader()
@@ -710,6 +795,7 @@ void DXRender::Draw()
 	ShadowPass.Execute(CommandList.Get());
     ShadowMaskPass.Execute(CommandList.Get());
     MainPass.Execute(CommandList.Get());
+	SkyPass.Execute(CommandList.Get());
 
     // --- Start ImGui Frame ---
     ImGui_ImplDX12_NewFrame();
@@ -783,6 +869,10 @@ DXRender::~DXRender()
     {
         delete PtrMesh;
     }
+    if(SkyboxMesh)
+    {
+        delete SkyboxMesh;
+	}
 }
 
 void DXRender::InitShadowMap()
@@ -1086,7 +1176,55 @@ void DXRender::InitPasses()
         }
         // MainPass 不执行，等 ImGui 渲染完后统一执行
 	};
+    SkyPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
 
+            D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
+
+            CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
+
+            D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+            ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+            CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+            CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &CPU_DSV_Handle);
+
+            CommandList->RSSetViewports(1, &ScreenViewport);
+            CommandList->RSSetScissorRects(1, &ScissorRect);
+
+            CommandList->SetGraphicsRootSignature(RootSignature.Get());
+            CommandList->SetPipelineState(SkyPass.PSO.Get());
+            //Light Constants
+            auto MainCameraPos = MainCamera.GetPosition();
+            SkyboxMesh->SetPosition(MainCameraPos.x, MainCameraPos.y, MainCameraPos.z);
+            LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
+
+            if (LightConstantBufferMappedData)
+            {
+                memcpy(LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
+            }
+            CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
+
+            CommandList->SetGraphicsRootDescriptorTable(3, EnvCubeSRVHandle.GpuHandle);
+
+            auto MVPMatrix = SkyboxMesh->CalMVPMatrix(MainCamera.CalViewProjMatrix());
+            auto M_Matrix = SkyboxMesh->GetWorldMatrix();
+            ObjectConstants objConstants;
+            DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
+            DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
+            SkyboxMesh->UpdateObjectConstantBuffer(objConstants);
+
+
+			auto VBView = SkyboxMesh->GetVertexBufferView();
+			auto IBView = SkyboxMesh->GetIndexBufferView();
+            CommandList->SetGraphicsRootDescriptorTable(0, SkyboxMesh->GetCbvGpuHandle());
+            CommandList->IASetIndexBuffer(&IBView);
+			CommandList->IASetVertexBuffers(0, 1, &VBView);
+            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			CommandList->DrawIndexedInstanced(SkyboxMesh->GetIndexCount(), 1, 0, 0, 0);
+
+
+        };
     ShadowMaskPass.Name = "ShadowMaskPass";
     ShadowMaskPass.Execute = [&](ID3D12GraphicsCommandList* CommandList)
         {
@@ -1198,6 +1336,8 @@ void DXRender::InitPasses()
 
             }
 	    };
+
+
 
 }
 
@@ -1314,6 +1454,35 @@ void DXRender::InitZPrepassPSO()
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&ZPrePass.PSO)));
 }
 
+void DXRender::InitSkyPassPSO()
+{
+    auto SkyVS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"SkyVS", L"Skybox.hlsl", "VSMain", "vs_5_0"
+    )->GetBytecode();
+    auto SkyPS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"SkyPS", L"Skybox.hlsl", "PSMain", "ps_5_0"
+    )->GetBytecode();
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
+    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
+    psoDesc.VS = { reinterpret_cast<BYTE*>(SkyVS->GetBufferPointer()), SkyVS->GetBufferSize() };
+    psoDesc.PS = { reinterpret_cast<BYTE*>(SkyPS->GetBufferPointer()), SkyPS->GetBufferSize() };
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState.DepthEnable = TRUE;  // 临时禁用深度测试进行调试
+    psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count = 1;
+	ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&SkyPass.PSO)));
+}
+
 
 
 DXRender::DXRender()
@@ -1407,7 +1576,7 @@ GraphicsPSOBuilder& GraphicsPSOBuilder::SetShaders(const std::wstring& vsName, c
     return *this;
 }
 
-void Texture::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB)
+void TextureTmp::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB)
 {
 
     // texture->cpu->gpu and destory on cpu
@@ -1446,7 +1615,7 @@ void Texture::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filen
 
 }
 
-void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename)
+void TextureTmp::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename)
 {
     // texture->cpu->gpu and destory on cpu
     auto device = Device::GetInstance().GetD3DDevice();
@@ -1487,7 +1656,7 @@ void Texture::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Fi
 
 }
 
-void Texture::Release()
+void TextureTmp::Release()
 {
     Resource.Reset();
     UploadHeap.Reset();
@@ -1496,7 +1665,7 @@ void Texture::Release()
     Height = 0;
 }
 
-void Texture::CreateTextureResource(ID3D12Device* device, ID3D12GraphicsCommandList* CmdList, const void* InData, int Width, int Height, DXGI_FORMAT Format, int PixelByteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& OutResource, Microsoft::WRL::ComPtr<ID3D12Resource>& OutUploadHeap)
+void TextureTmp::CreateTextureResource(ID3D12Device* device, ID3D12GraphicsCommandList* CmdList, const void* InData, int Width, int Height, DXGI_FORMAT Format, int PixelByteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& OutResource, Microsoft::WRL::ComPtr<ID3D12Resource>& OutUploadHeap)
 {
     D3D12_RESOURCE_DESC Desc = {};
     Desc.MipLevels = 1;

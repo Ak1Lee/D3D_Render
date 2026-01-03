@@ -19,8 +19,8 @@ struct ObjectConstants
 struct MaterialConstants
 {
     DirectX::XMFLOAT4 Albedo = {0.8f, 0.8f,0.8f,0.0f};    // 16 bytes
-    float Roughness = 0.5;    // 4 bytes
-    float Metallic = 0.1;     // 4 bytes
+    float Roughness = 0.5f;    // 4 bytes
+    float Metallic = 0.1f;     // 4 bytes
     float AO = 0;           // 4 bytes
     float Padding;      // 4 bytes (´ÕÆë 16 bytes ¶ÔÆë)
 };

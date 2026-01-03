@@ -33,12 +33,12 @@ struct RenderPass
     std::function<void(ID3D12GraphicsCommandList*)> Execute;
 };
 
-class Texture
+class TextureTmp
 {
 
 public:
-	Texture(const std::string& InName) : Name(InName) {}
-    ~Texture(){ Release(); }
+	TextureTmp(const std::string& InName) : Name(InName) {}
+    ~TextureTmp() { Release();}
 
 
     void LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB = false);
@@ -178,6 +178,8 @@ public:
     unsigned int GetDsvDescriptorSize() { return DsvDescriptorSize; }
     unsigned int GetSrvUavDescriptorSize() { return SrvUavDescriptorSize; }
 
+	ID3D12GraphicsCommandList* GetCommandList() { return CommandList.Get(); }
+
     void InitShadowMap();
 	void InitShadowPSO();
 
@@ -187,12 +189,14 @@ public:
 	void InitShadowMaskPSO();
 
     void InitZPrepassPSO();
+    void InitSkyPassPSO();
 
     //csTest
     //todo 
 	void InitComputeRootSignature();
     void ComputeCubemap();
 	void InitEnvCubeMap();
+	void InitIrradianceMap();
 
 private:
     DXRender();
@@ -275,7 +279,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ImguiSrvHeap = nullptr;
 
     friend class Material;
-	friend class Texture;
+	friend class TextureTmp;
+    friend class Texture;
 
 
     // ShadowMap
@@ -305,6 +310,8 @@ private:
     RenderPass ShadowMaskPass;
 	RenderPass ZPrePass;
 
+    RenderPass SkyPass;
+
 
 
     std::vector<RenderPass> RenderPasses;
@@ -314,10 +321,21 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePipelineState;
 
-    Texture HDRTex = Texture( "puresky" );
+    TextureTmp HDRTex = TextureTmp( "puresky" );
     Microsoft::WRL::ComPtr<ID3D12Resource> EnvCubeMap;
     DescriptorAllocation EnvCubeUAVHandle;
     DescriptorAllocation EnvCubeSRVHandle;
+
+    // SKYBOX
+    Box* SkyboxMesh = nullptr;
+
+
+    // IrradianceMap
+	Microsoft::WRL::ComPtr<ID3D12Resource> IrradianceMap;
+	DescriptorAllocation IrradianceMapSRVHandle;
+	DescriptorAllocation IrradianceMapUAVHandle;
+
+
 
 };
 

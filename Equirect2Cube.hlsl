@@ -16,6 +16,7 @@ float2 SampleSphericalMap(float3 v)
     float2 uv = float2(atan2(v.z, v.x), asin(v.y));
     uv *= invAtan;
     uv += 0.5;
+    uv.y = 1.0 - uv.y;
     return uv;
 }
 
@@ -61,7 +62,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     
     // 注意：Compute Shader 写图通常是倒着的，需要 Flip Y
     // 如果发现天空盒上下颠倒，把下面这行解开
-    // uv.y = 1.0 - uv.y; 
+    uv.y = 1.0 - uv.y; 
 
     // 2. 算出 3D 向量
     float3 dir = normalize(GetDirFromCubeFace(DTid.z, uv));

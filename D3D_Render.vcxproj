@@ -129,6 +129,7 @@
   <ItemGroup>
     <ClCompile Include="camera.cpp" />
     <ClCompile Include="Common.cpp" />
+    <ClCompile Include="DescriptorAllocator.cpp" />
     <ClCompile Include="DXDevice.cpp" />
     <ClCompile Include="DXMaterial.cpp" />
     <ClCompile Include="DXPSOManager.cpp" />
@@ -145,13 +146,16 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MathHelper.cpp" />
     <ClCompile Include="render.cpp" />
+    <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Timer.cpp" />
     <ClCompile Include="Timer.h" />
+    <ClCompile Include="VendorImpl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="DescriptorAllocator.h" />
     <ClInclude Include="DXDevice.h" />
     <ClInclude Include="DXMaterial.h" />
     <ClInclude Include="DXMaterialManager.h" />
@@ -171,6 +175,7 @@
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="render.h" />
     <ClInclude Include="stb_image.h" />
+    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
