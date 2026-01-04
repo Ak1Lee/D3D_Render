@@ -23,7 +23,7 @@ void Material::Init()
 
     // cbv初始化
     auto DstSize = DXRender::GetInstance().GetSrvUavDescriptorSize();
-	auto AllocInfo = DXRender::GetInstance().AllocateDescriptorHandle(DstSize);
+	auto AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	auto CbSize = (sizeof(MaterialConstants) + 255) & ~255; // 256字节对齐
 
 	CpuCbvHandle = AllocInfo.CpuHandle;

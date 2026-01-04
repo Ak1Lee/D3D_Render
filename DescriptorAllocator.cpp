@@ -61,6 +61,11 @@ DescriptorHandle DescriptorHeap::AllocateRange(UINT count)
 //{
 //    throw std::runtime_error("to be done!");
 //}
+DescriptorAllocatorManager& DescriptorAllocatorManager::GetInstance()
+{
+    static DescriptorAllocatorManager instance;
+    return instance;
+}
 
 void DescriptorAllocatorManager::Init(ID3D12Device* device)
 {

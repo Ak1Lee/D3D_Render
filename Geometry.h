@@ -20,6 +20,7 @@
 // 4. 项目头文件（依赖DirectXMath）
 #include "DXDevice.h"
 #include "Common.h"
+#include "DescriptorAllocator.h"
 
 class Material;
 class MeshBase
@@ -64,7 +65,11 @@ public:
 
 	// 常量缓冲区
 	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, UINT descriptorSize, UINT indexInHeap);
+	// not use
 	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, DescriptorAllocation DescriptorAllocInfo);
+
+	virtual void InitObjectConstantBuffer(ID3D12Device* Device, DescriptorHandle DescriptorAllocInfo);
+
 	virtual void UpdateObjectConstantBuffer(ObjectConstants& ObjConst);
 
 	// 材质

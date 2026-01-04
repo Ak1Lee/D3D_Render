@@ -14,6 +14,7 @@
 #include "imgui/backends/imgui_impl_win32.h"
 #include "imgui/backends/imgui_impl_dx12.h"
 
+
 //tex load
 // #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -83,8 +84,12 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
     
     // InitEnvCubeMap 需要 CommandList 处于打开状态
-    InitEnvCubeMap();
-	HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
+    InitEnvCubeMapAndIrradianceMap();
+
+	//HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
+	m_HDRSkyTexture = std::make_shared<Texture>("HDRSky");
+	m_HDRSkyTexture->LoadFromFile(Device::GetInstance().GetD3DDevice(),CommandList.Get(), ".\\resources\\puresky_2k.hdr",false,true);
+
     ExecuteCommandAndWaitForComplete();
 
     
@@ -133,6 +138,9 @@ void DXRender::InitDX(HWND hWnd)
     InitSwapChain(hWnd);
     InitRenderTargetHeapAndView();
 
+    // add descriptor manager
+    DescriptorAllocatorManager::GetInstance().Init(Device::GetInstance().GetD3DDevice());
+
 
     InitRootSignature();
 
@@ -164,9 +172,11 @@ void DXRender::InitDX(HWND hWnd)
         auto BoxPtr = new Box();
         BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
         BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-		DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+		DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+
+		//DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
         // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
-        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 		BoxPtr->SetMaterialByName("Mat_Red");
         MeshList.push_back(BoxPtr);
     }
@@ -177,8 +187,8 @@ void DXRender::InitDX(HWND hWnd)
 		SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
 		SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 		//SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
-        DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
-        SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+        DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+        SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 		SpherePtr->SetMaterialByName("Mat_Gold");
 		MeshList.push_back(SpherePtr);
 	}
@@ -186,7 +196,7 @@ void DXRender::InitDX(HWND hWnd)
 	//auto PanelPtr = new Plane(10,10,10,10);
 	//PanelPtr->SetPosition(0.0f, -2.0f, 0.0f);
 	//PanelPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
- //   DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+ //   DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	////PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
  //   PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
 	//PanelPtr->SetMaterialByName("Mat_Red");
@@ -195,9 +205,9 @@ void DXRender::InitDX(HWND hWnd)
     BoxPtr->SetPosition(0.0f, -2.0f, 0.0f);
 	BoxPtr->SetScale(10.0f, 0.5f, 10.0f);
     BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
     //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
-    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
     BoxPtr->SetMaterialByName("Mat_White");
     MeshList.push_back(BoxPtr);
 
@@ -205,9 +215,9 @@ void DXRender::InitDX(HWND hWnd)
     BoxPtr->SetPosition(0.0f, -10.0f, -3.0f);
     BoxPtr->SetScale(0.5f, 15.f, 0.5f);
     BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
     //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
-    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
     BoxPtr->SetMaterialByName("Mat_Red");
 
 	MeshList.push_back(BoxPtr);
@@ -318,11 +328,11 @@ void DXRender::InitRenderTargetHeapAndView()
 
 void DXRender::CreateConstantBufferView()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC ConstantBufferViewHeapDesc = {};
-    ConstantBufferViewHeapDesc.NumDescriptors = MAX_HEAP_SIZE;
-    ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
+    //D3D12_DESCRIPTOR_HEAP_DESC ConstantBufferViewHeapDesc = {};
+    //ConstantBufferViewHeapDesc.NumDescriptors = MAX_HEAP_SIZE;
+    //ConstantBufferViewHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    //ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    //ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
 
     // 创建常量缓冲区 - 大小必须是256字节对齐 转移到 MeshBase
  //   const UINT constantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
@@ -356,13 +366,9 @@ void DXRender::CreateConstantBufferView()
     // 2) 映射得到 CPU 可写指针
     CD3DX12_RANGE ReadRange(0, 0);
     ThrowIfFailed(LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData)));
-    auto LightCvbHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+    auto LightCvbHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	LightCbvCpuHandle = LightCvbHandle.CpuHandle;
 	LightCbvGpuHandle = LightCvbHandle.GpuHandle;
-	//LightCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
- //   LightCbvCpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
- //   LightCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
- //   LightCbvGpuHandle.ptr += /* LightCbvHeapIndex */ 19 * SrvUavDescriptorSize;
     // 创建 CBV 
     D3D12_CONSTANT_BUFFER_VIEW_DESC LightCbvDesc = {};
     LightCbvDesc.BufferLocation = LightConstantBuffer->GetGPUVirtualAddress();
@@ -381,13 +387,9 @@ void DXRender::CreateConstantBufferView()
     CD3DX12_RANGE MatReadRange(0, 0);
     ThrowIfFailed(MaterialConstantBuffer->Map(0, &MatReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData)));
 
-	auto MaterialCvbHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
+	auto MaterialCvbHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	MaterialCbvCpuHandle = MaterialCvbHandle.CpuHandle;
 	MaterialCbvGpuHandle = MaterialCvbHandle.GpuHandle;
-	//MaterialCbvCpuHandle = ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart();
-	//MaterialCbvCpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
-	//MaterialCbvGpuHandle = ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart();
-	//MaterialCbvGpuHandle.ptr += MaterialCbvHeapIndex * SrvUavDescriptorSize;
 	D3D12_CONSTANT_BUFFER_VIEW_DESC MaterialCbvDesc = {};
 	MaterialCbvDesc.BufferLocation = MaterialConstantBuffer->GetGPUVirtualAddress();
 	MaterialCbvDesc.SizeInBytes = MaterialConstantBufferSize;
@@ -512,98 +514,50 @@ void DXRender::ComputeCubemap()
 {
 	CommandList->SetPipelineState(ComputePipelineState.Get());
 	CommandList->SetComputeRootSignature(ComputeRootSignature.Get());
-    ID3D12DescriptorHeap* ppHeaps[] = { ConstantBufferViewHeap.Get() };
+    ID3D12DescriptorHeap* ppHeaps[] = { 
+        DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+    };
     CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
-    CD3DX12_RESOURCE_BARRIER Inbarrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        EnvCubeMap.Get(),
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS
-    );
-    CommandList->ResourceBarrier(1, &Inbarrier);
+	m_EnvCubeMap->TransitionTo(CommandList.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	// 设置描述符堆
-	CommandList->SetComputeRootDescriptorTable(0, HDRTex.GetGpuHandle());
-
-	CommandList->SetComputeRootDescriptorTable(1, EnvCubeUAVHandle.GpuHandle);
+	//CommandList->SetComputeRootDescriptorTable(0, m_HDRSkyTexture->GetSRV_G());
+    m_HDRSkyTexture->BindSRV_Compute(CommandList.Get(), 0);
+	// CommandList->SetComputeRootDescriptorTable(1, m_EnvCubeMap->GetUAV_G());
+    m_EnvCubeMap->BindUAV_Compute(CommandList.Get(), 1);
 
 	CommandList->Dispatch(1024 / 32, 1024 / 32, 6); // 每个线程组处理16x16像素
 
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        EnvCubeMap.Get(),
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // 刚才在写
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE // 待会要读
-    );
-
-    CommandList->ResourceBarrier(1, &barrier);
+	m_EnvCubeMap->TransitionTo(CommandList.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     // ExecuteCommandAndWaitForComplete();
 }
 
-void DXRender::InitEnvCubeMap()
+void DXRender::InitEnvCubeMapAndIrradianceMap()
 {
-    auto device = Device::GetInstance().GetD3DDevice();
 
-    D3D12_RESOURCE_DESC TexDesc = {};
-    TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    TexDesc.Width = 1024; // Cubemap 每个面的大小，通常 1024 或 512
-    TexDesc.Height = 1024;
-    TexDesc.DepthOrArraySize = 6; // 【关键】6 表示这是一个立方体 (6个面)
-    TexDesc.MipLevels = 1;        // 目前先只做 Level 0
-    TexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // HDR 格式 (半精度浮点足够了)
-    TexDesc.SampleDesc.Count = 1;
-    TexDesc.SampleDesc.Quality = 0;
-    TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    //允许 Unordered Access (UAV)
-    TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	m_EnvCubeMap = std::make_shared<Texture>();
+    auto cubeDesc = TextureDesc::CreateCube(
+        1024,
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+        TextureViewFlags::SRV | TextureViewFlags::UAV
+    );
+    m_EnvCubeMap->Create(CommandList.Get(), cubeDesc);
 
-	CD3DX12_HEAP_PROPERTIES HeapProps(D3D12_HEAP_TYPE_DEFAULT);
-
-    ThrowIfFailed(device->CreateCommittedResource(
-        &HeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &TexDesc,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // UAV 需要这个状态
-        nullptr,
-        IID_PPV_ARGS(&EnvCubeMap)
-	));
-	EnvCubeMap->SetName(L"Environment CubeMap");
-
-    // uav
-	EnvCubeUAVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-    uavDesc.Format = TexDesc.Format;
-    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-    uavDesc.Texture2DArray.MipSlice = 0;
-    uavDesc.Texture2DArray.FirstArraySlice = 0;
-    uavDesc.Texture2DArray.ArraySize = 6;
-    device->CreateUnorderedAccessView(
-        EnvCubeMap.Get(),
-        nullptr,
-        &uavDesc,
-        EnvCubeUAVHandle.CpuHandle
+	m_IrradianceMap = std::make_shared<Texture>();
+    auto irradianceDesc = TextureDesc::CreateCube(
+        32,
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+        TextureViewFlags::SRV | TextureViewFlags::UAV
 	);
-
-    //srv
-	EnvCubeSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = TexDesc.Format;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-    srvDesc.TextureCube.MostDetailedMip = 0;
-    srvDesc.TextureCube.MipLevels = TexDesc.MipLevels;
-    srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    device->CreateShaderResourceView(
-        EnvCubeMap.Get(),
-        &srvDesc,
-        EnvCubeSRVHandle.CpuHandle
-	);
+	m_IrradianceMap->Create(CommandList.Get(), irradianceDesc);
 
 
     // sky box
 	SkyboxMesh = new Box();
 	SkyboxMesh->SetScale(1.0f, 1.0f, 1.0f);
     SkyboxMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    DescriptorAllocation AllocInfo = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    SkyboxMesh->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
+    DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    SkyboxMesh->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 
 
 
@@ -611,57 +565,6 @@ void DXRender::InitEnvCubeMap()
 
 void DXRender::InitIrradianceMap()
 {
-    auto device = Device::GetInstance().GetD3DDevice();
-
-    D3D12_RESOURCE_DESC TexDesc = {};
-    TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    TexDesc.Width = 32; // Cubemap 每个面的大小，通常 1024 或 512
-    TexDesc.Height = 32;
-    TexDesc.DepthOrArraySize = 6; // 【关键】6 表示这是一个立方体 (6个面)
-    TexDesc.MipLevels = 1;        // 目前先只做 Level 0
-    TexDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT; // HDR 格式 (半精度浮点足够了)
-    TexDesc.SampleDesc.Count = 1;
-    TexDesc.SampleDesc.Quality = 0;
-    TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-    //允许 Unordered Access (UAV)
-    TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-    CD3DX12_HEAP_PROPERTIES HeapProps(D3D12_HEAP_TYPE_DEFAULT);
-
-    ThrowIfFailed(device->CreateCommittedResource(
-        &HeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &TexDesc,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS, // UAV 需要这个状态
-        nullptr,
-        IID_PPV_ARGS(&IrradianceMap)
-    ));
-	IrradianceMapSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-    SrvDesc.Format = TexDesc.Format;
-	SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-	SrvDesc.TextureCube.MipLevels = 1;
-	SrvDesc.TextureCube.MostDetailedMip = 0;
-	SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    device->CreateShaderResourceView(
-        IrradianceMap.Get(),
-        &SrvDesc,
-        IrradianceMapSRVHandle.CpuHandle
-	);
-
-	IrradianceMapUAVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-	uavDesc.Format = TexDesc.Format;
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-    uavDesc.Texture2DArray.ArraySize = 6;
-    device->CreateUnorderedAccessView(
-        IrradianceMap.Get(),
-        nullptr,
-        &uavDesc,
-        IrradianceMapUAVHandle.CpuHandle
-	);
-
-
 }
 
 void DXRender::CompileShader()
@@ -877,70 +780,17 @@ DXRender::~DXRender()
 
 void DXRender::InitShadowMap()
 {
-	auto device = Device::GetInstance().GetD3DDevice();
 
-	D3D12_RESOURCE_DESC TexDesc = {};
-	TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	TexDesc.Alignment = 0;
-	TexDesc.Width = ShadowMapSize;
-	TexDesc.Height = ShadowMapSize;
-	TexDesc.DepthOrArraySize = 1;
-    TexDesc.MipLevels = 1;
+    m_ShadowMap = std::make_shared<Texture>("ShadowMap");
+    // 创建 ShadowMap (DSV + SRV)
+    m_ShadowMap->Create(
+        CommandList.Get(),
+        TextureDesc::CreateDepth(ShadowMapSize, ShadowMapSize, true) //SRV (给 MainPass 采样)
+    );
 
-	TexDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	TexDesc.SampleDesc.Count = 1;
-	TexDesc.SampleDesc.Quality = 0;
-	TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-    D3D12_CLEAR_VALUE ClearValue = {};
-    ClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    ClearValue.DepthStencil.Depth = 1.0f;
-	ClearValue.DepthStencil.Stencil = 0;
-
-
-	CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(
-        &HeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &TexDesc,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  // 初始状态改为 PSR，匹配第一帧的 barrier
-        &ClearValue,
-        IID_PPV_ARGS(&ShadowMap)
-	));
-	ShadowMap->SetName(L"Shadow Map");
-    // 创建DSV
-	D3D12_DESCRIPTOR_HEAP_DESC DsvHeapDesc = {};
-	DsvHeapDesc.NumDescriptors = 1;
-	DsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-	DsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-    ThrowIfFailed(device->CreateDescriptorHeap(&DsvHeapDesc, IID_PPV_ARGS(&ShadowDSVHeap)));
-
-	ShadowDSVHandle = ShadowDSVHeap->GetCPUDescriptorHandleForHeapStart();
-
-    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
-	device->CreateDepthStencilView(ShadowMap.Get(), &dsvDesc, ShadowDSVHandle);
-
-	//SRV for sampling in shader
-	ShadowSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Texture2D.MostDetailedMip = 0;
-    srvDesc.Texture2D.MipLevels = 1;
-    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	device->CreateShaderResourceView(ShadowMap.Get(), &srvDesc, ShadowSRVHandle.CpuHandle);
-
-    //device->CreateShaderResourceView(ShadowMap.Get(), &srvDesc, ShadowSRVHandle.CpuHandle);
-    // 4. 初始化视口 (Shadow Pass 专用)
+    // 初始化视口 (Shadow Pass 专用)
     m_ShadowViewport = { 0.0f, 0.0f, (float)ShadowMapSize, (float)ShadowMapSize, 0.0f, 1.0f };
     m_ShadowScissorRect = { 0, 0, (LONG)ShadowMapSize, (LONG)ShadowMapSize };
-
 
 }
 
@@ -994,21 +844,22 @@ void DXRender::InitPasses()
         {
             CommandList->SetPipelineState(ShadowPSO.Get());
         }
-        ID3D12DescriptorHeap* ShadowDescriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+        ID3D12DescriptorHeap* ShadowDescriptorHeaps[] = { 
+            DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+        };
         CommandList->SetDescriptorHeaps(_countof(ShadowDescriptorHeaps), ShadowDescriptorHeaps);
-        CD3DX12_RESOURCE_BARRIER Barrier_SR2W = CD3DX12_RESOURCE_BARRIER::Transition(
-            ShadowMap.Get(),
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-            D3D12_RESOURCE_STATE_DEPTH_WRITE
-        );
-        CommandList->ResourceBarrier(1, &Barrier_SR2W);
-        CommandList->OMSetRenderTargets(0, nullptr, FALSE, &ShadowDSVHandle);
-        CommandList->ClearDepthStencilView(ShadowDSVHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        
+		//
+		m_ShadowMap->TransitionTo(CommandList, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		m_ShadowMap->ClearDepth(CommandList, 1.0f, 0);
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvhandle = m_ShadowMap->GetDSV();
+
+        CommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvhandle);
+
         CommandList->RSSetViewports(1, &m_ShadowViewport);
         CommandList->RSSetScissorRects(1, &m_ShadowScissorRect);
 
         // Shadow Pass 绘制场景到深度图
-        // todo
         DirectX::XMVECTOR lightDirVec = XMLoadFloat3(&LightConstantInstance.LightDirection);
         lightDirVec = DirectX::XMVector3Normalize(lightDirVec);
 
@@ -1070,12 +921,7 @@ void DXRender::InitPasses()
         }
 
         // Shadow pass 完成后，将 shadow map 从 depth write 转为 shader resource
-        CD3DX12_RESOURCE_BARRIER Barrier_W2PSR = CD3DX12_RESOURCE_BARRIER::Transition(
-            ShadowMap.Get(),
-            D3D12_RESOURCE_STATE_DEPTH_WRITE,
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-        );
-        CommandList->ResourceBarrier(1, &Barrier_W2PSR);
+		m_ShadowMap->TransitionTo(CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
         // 立即执行 shadow pass，避免 CB 被主渲染 pass 覆盖
         //ExecuteCommandAndWaitForComplete();
@@ -1094,18 +940,15 @@ void DXRender::InitPasses()
         );
         CommandList->ResourceBarrier(1, &Barrier_P2RT);
 
+        // todo 清理这些东西
         D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
-
         CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
-
-        D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
-
         // 添加清除渲染目标
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
         CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
-        // CommandList->ClearDepthStencilView(CPU_DSV_Handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-        CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &CPU_DSV_Handle);
-        //CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, nullptr);
+		auto dsvhandle = m_SceneDepth->GetDSV();
+        CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &dsvhandle);
+
 
         CommandList->RSSetViewports(1, &ScreenViewport);
         CommandList->RSSetScissorRects(1, &ScissorRect);
@@ -1113,7 +956,9 @@ void DXRender::InitPasses()
         CommandList->SetGraphicsRootSignature(RootSignature.Get());
 
         // 绑定描述符堆
-        ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+        ID3D12DescriptorHeap* descriptorHeaps[] = { 
+            DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+        };
         CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
         // 设置主渲染 PSO
@@ -1137,10 +982,12 @@ void DXRender::InitPasses()
         }
         CommandList->SetGraphicsRootDescriptorTable(2, MaterialCbvGpuHandle);
 
-		// shadow map SRV
-        CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle);
-        // shadow mask SRV
-		CommandList->SetGraphicsRootDescriptorTable(4, ShadowMaskSRVHandle.GpuHandle);
+		//// shadow map SRV
+  //      CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle);
+  //      // shadow mask SRV
+		//CommandList->SetGraphicsRootDescriptorTable(4, ShadowMaskSRVHandle.GpuHandle);
+		m_ShadowMap->BindSRV_Graphics(CommandList, 3);
+		m_ShadowMask->BindSRV_Graphics(CommandList, 4);
 
         for (auto MeshElement : MeshList)
         {
@@ -1183,9 +1030,11 @@ void DXRender::InitPasses()
 
             CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
 
-            D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
+			D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = m_SceneDepth->GetDSV();
 
-            ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+            ID3D12DescriptorHeap* descriptorHeaps[] = {
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+            };
             CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
             CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &CPU_DSV_Handle);
 
@@ -1205,7 +1054,7 @@ void DXRender::InitPasses()
             }
             CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
 
-            CommandList->SetGraphicsRootDescriptorTable(3, EnvCubeSRVHandle.GpuHandle);
+            CommandList->SetGraphicsRootDescriptorTable(3, m_EnvCubeMap->GetSRV_G());
 
             auto MVPMatrix = SkyboxMesh->CalMVPMatrix(MainCamera.CalViewProjMatrix());
             auto M_Matrix = SkyboxMesh->GetWorldMatrix();
@@ -1228,27 +1077,21 @@ void DXRender::InitPasses()
     ShadowMaskPass.Name = "ShadowMaskPass";
     ShadowMaskPass.Execute = [&](ID3D12GraphicsCommandList* CommandList)
         {
-            CD3DX12_RESOURCE_BARRIER Barrier_P2RT = CD3DX12_RESOURCE_BARRIER::Transition(
-                ShadowMaskTexture.Get(),
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-                D3D12_RESOURCE_STATE_RENDER_TARGET
-            );
-            CommandList->ResourceBarrier(1, &Barrier_P2RT);
+            m_ShadowMask->Clear(CommandList);
+            // m_SceneDepth
+			m_ShadowMask->SetAsRenderTarget(CommandList, m_SceneDepth.get());
 
-            float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-            CommandList->ClearRenderTargetView(ShadowMaskRTVHandle, clearColor, 0, nullptr);
-
-            D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
-            CommandList->OMSetRenderTargets(1, &ShadowMaskRTVHandle, FALSE, &dsvHandle);
             CommandList->RSSetViewports(1, &ScreenViewport);
             CommandList->RSSetScissorRects(1, &ScissorRect);
 
             // 绑定描述符堆
-            ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+            ID3D12DescriptorHeap* descriptorHeaps[] = { 
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap() 
+            };
             CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
             CommandList->SetGraphicsRootSignature(RootSignature.Get());
-            CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle); // 绑定 shadow map SRV
+            CommandList->SetGraphicsRootDescriptorTable(3, m_ShadowMap->GetSRV_G()); // 绑定 shadow map SRV
 			CommandList->SetPipelineState(ShadowMaskPass.PSO.Get());
 
             //Light Constants
@@ -1285,12 +1128,7 @@ void DXRender::InitPasses()
 
                 CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
             }
-            CD3DX12_RESOURCE_BARRIER Barrier_RT2P = CD3DX12_RESOURCE_BARRIER::Transition(
-                ShadowMaskTexture.Get(),
-                D3D12_RESOURCE_STATE_RENDER_TARGET,
-                D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-            );
-            CommandList->ResourceBarrier(1, &Barrier_RT2P);
+			m_ShadowMask->TransitionTo(CommandList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
         };
 
@@ -1301,9 +1139,11 @@ void DXRender::InitPasses()
             // ZPrepass implementation (similar to ShadowPass but for main camera)
             // You can fill this in as needed
                         // 绑定描述符堆
-            ID3D12DescriptorHeap* descriptorHeaps[] = { ConstantBufferViewHeap.Get() };
+            ID3D12DescriptorHeap* descriptorHeaps[] = {
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+            };
             CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-			D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
+			D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = m_SceneDepth->GetDSV();
 			CommandList->ClearDepthStencilView(DsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 			CommandList->OMSetRenderTargets(0, nullptr, FALSE, &DsvHandle);
 
@@ -1343,49 +1183,12 @@ void DXRender::InitPasses()
 
 void DXRender::InitShadowMaskTexture()
 {
-    auto device = Device::GetInstance().GetD3DDevice();
-    D3D12_RESOURCE_DESC TexDesc = {};
-	TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    TexDesc.Width = Width;
-    TexDesc.Height = Height;
-
-	TexDesc.DepthOrArraySize = 1;
-	TexDesc.MipLevels = 1;
-	TexDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	TexDesc.SampleDesc.Count = 1;
-	TexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-
-	float ClearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-
-	CD3DX12_CLEAR_VALUE ClearValue(DXGI_FORMAT_R8G8B8A8_UNORM, ClearColor);
-
-    CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    ThrowIfFailed(device->CreateCommittedResource(
-        &HeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &TexDesc,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  // 初始状态改为 PSR，匹配第一帧的 barrier
-        &ClearValue,
-        IID_PPV_ARGS(&ShadowMaskTexture)
-    ));
-
-
-    ShadowMaskTexture->SetName(L"Shadow Mask Tetxure");
-
-
-	ShadowMaskRTVHandle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
-    ShadowMaskRTVHandle.Offset(FrameBufferCount, RtvDescriptorSize);
-
-	device->CreateRenderTargetView(ShadowMaskTexture.Get(), nullptr, ShadowMaskRTVHandle);
-    ShadowMaskSRVHandle = AllocateDescriptorHandle(SrvUavDescriptorSize);
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc.Texture2D.MipLevels = 1;
-
-    Device::GetInstance().GetD3DDevice()->CreateShaderResourceView(
-        ShadowMaskTexture.Get(), &srvDesc, ShadowMaskSRVHandle.CpuHandle);
+    m_ShadowMask = std::make_shared<Texture>("ShadowMask");
+    // 创建 ShadowMask (RTV + SRV, LDR格式)
+    m_ShadowMask->Create(
+        CommandList.Get(),
+        TextureDesc::Create2D(Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, TextureViewFlags::RTV | TextureViewFlags::SRV)
+    );
 }
 
 void DXRender::InitShadowMaskPSO()
@@ -1490,6 +1293,7 @@ DXRender::DXRender()
     MainCamera.Init((float)Width, (float)Height);
 }
 
+// not use anymore
 DescriptorAllocation DXRender::AllocateDescriptorHandle(unsigned int DescriptorSize)
 {
     if(CurrentSrvHeapIndex >= MAX_HEAP_SIZE)
@@ -1497,66 +1301,37 @@ DescriptorAllocation DXRender::AllocateDescriptorHandle(unsigned int DescriptorS
         throw std::runtime_error("Exceeded maximum descriptor heap size!");
 	}
     // 计算 CPU 句柄 (用于创建资源)
-    CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(
-        ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart(),
-        CurrentSrvHeapIndex,
-        DescriptorSize);
+    //CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(
+    //    ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart(),
+    //    CurrentSrvHeapIndex,
+    //    DescriptorSize);
 
-    // 计算 GPU 句柄 (用于绑定 Shader)
-    CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(
-        ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart(),
-        CurrentSrvHeapIndex,
-        DescriptorSize);
+    //// 计算 GPU 句柄 (用于绑定 Shader)
+    //CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(
+    //    ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart(),
+    //    CurrentSrvHeapIndex,
+    //    DescriptorSize);
 
 	unsigned int RetIdx = CurrentSrvHeapIndex;
 
     CurrentSrvHeapIndex++; // 指针后移
 
-    return { cpuHandle, gpuHandle, RetIdx };
+    //return { cpuHandle, gpuHandle, RetIdx };
+    return { 0, 0, RetIdx };
+
     //return std::pair<D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE>();
 }
 
 // DepthStencilBuffer
 void DXRender::InitDepthStencilBuffer()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC DsvHeapDesc = {};
-    DsvHeapDesc.NumDescriptors = 1;
-	DsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-    DsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&DsvHeapDesc, IID_PPV_ARGS(&DsvHeap)));
 
-    DXGI_FORMAT DepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    m_SceneDepth = std::make_shared<Texture>("SceneDepth");
+    m_SceneDepth->Create(
+        CommandList.Get(),
+        TextureDesc::CreateDepth(Width, Height, true)
+	);
 
-    D3D12_CLEAR_VALUE DepthOptimizedClearValue = {};
-    DepthOptimizedClearValue.Format = DepthFormat;
-    DepthOptimizedClearValue.DepthStencil.Depth = 1.0f;
-    DepthOptimizedClearValue.DepthStencil.Stencil = 0;
-
-    CD3DX12_HEAP_PROPERTIES DepthHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_RESOURCE_DESC DepthResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-        DepthFormat,
-        Width,
-        Height,
-        1, // 1 texture
-        1  // 1 mipmap level
-    );
-    DepthResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
-        &DepthHeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &DepthResourceDesc,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        &DepthOptimizedClearValue,
-        IID_PPV_ARGS(&DepthStencilBuffer)
-    ));
-    D3D12_DEPTH_STENCIL_VIEW_DESC dsv = {};
-    dsv.Format = DepthFormat;
-    dsv.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-    dsv.Flags = D3D12_DSV_FLAG_NONE;
-
-    D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
-    Device::GetInstance().GetD3DDevice()->CreateDepthStencilView(DepthStencilBuffer.Get(), &dsv, DsvHandle);
-	DepthStencilBuffer->SetName(L"Depth Stencil Buffer");
 }
 // DepthStencilBuffer End
 
@@ -1602,7 +1377,7 @@ void TextureTmp::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Fi
 	stbi_image_free(Data);
 
     auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
-    Handle = DXRender::GetInstance().AllocateDescriptorHandle(size);
+	Handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 
     // SRV
 	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
@@ -1643,7 +1418,7 @@ void TextureTmp::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string
     stbi_image_free(Data);
 
     auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
-    Handle = DXRender::GetInstance().AllocateDescriptorHandle(size);
+	Handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 
     // SRV
     D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};

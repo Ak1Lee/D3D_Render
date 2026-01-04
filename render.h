@@ -12,6 +12,8 @@
 #include "DXDevice.h"
 #include "Geometry.h"
 
+#include "DescriptorAllocator.h"
+#include "Texture.h"
 #include "camera.h"
 #include <functional>
 
@@ -62,7 +64,7 @@ private:
 
     Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap;
 
-    DescriptorAllocation Handle;
+    DescriptorHandle Handle;
 
     int Width = 0;
     int Height = 0;
@@ -195,7 +197,7 @@ public:
     //todo 
 	void InitComputeRootSignature();
     void ComputeCubemap();
-	void InitEnvCubeMap();
+	void InitEnvCubeMapAndIrradianceMap();
 	void InitIrradianceMap();
 
 private:
@@ -225,8 +227,6 @@ private:
     DescriptorAllocation AllocateDescriptorHandle(unsigned int DescriptorSize);
 
     // Constant Buffer View Heap
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ConstantBufferViewHeap;
-    Microsoft::WRL::ComPtr<ID3D12Resource> ObjectConstantBuffer;
     UINT8* ConstantBufferMappedData = nullptr;
     // Constant Buffer
 
@@ -248,8 +248,6 @@ private:
 
 
 	// DepthStencilBuffer
-	Microsoft::WRL::ComPtr<ID3D12Resource> DepthStencilBuffer;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> DsvHeap;
 	void InitDepthStencilBuffer();
 	// DepthStencilBuffer End
 
@@ -284,32 +282,28 @@ private:
 
 
     // ShadowMap
-    Microsoft::WRL::ComPtr<ID3D12Resource> ShadowMap;
+    //Microsoft::WRL::ComPtr<ID3D12Resource> ShadowMap;
+
+    std::shared_ptr<Texture> m_ShadowMap = nullptr;
+    std::shared_ptr<Texture> m_ShadowMask = nullptr;
+    std::shared_ptr<Texture> m_SceneDepth = nullptr;
+	std::shared_ptr<Texture> m_SceneColor = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> ShadowDSVHeap;
 
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ShadowPSO;
 
-    D3D12_CPU_DESCRIPTOR_HANDLE ShadowDSVHandle;
-    DescriptorAllocation ShadowSRVHandle;
+    // D3D12_CPU_DESCRIPTOR_HANDLE ShadowDSVHandle;
+    // DescriptorHandle ShadowSRVHandle;
     const UINT ShadowMapSize = 2048;
     D3D12_VIEWPORT m_ShadowViewport;
     D3D12_RECT m_ShadowScissorRect;
 
-    // ShadowMask
-    Microsoft::WRL::ComPtr<ID3D12Resource> ShadowMaskTexture;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE ShadowMaskRTVHandle;
-	DescriptorAllocation ShadowMaskSRVHandle;
-
-
-
     // Pass
-
     RenderPass ShadowPass;
 	RenderPass MainPass;
     RenderPass ShadowMaskPass;
 	RenderPass ZPrePass;
-
     RenderPass SkyPass;
 
 
@@ -317,25 +311,14 @@ private:
     std::vector<RenderPass> RenderPasses;
 
 	//compute shader
-    // CD3DX12_DESCRIPTOR_RANGE CSSrvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePipelineState;
 
-    TextureTmp HDRTex = TextureTmp( "puresky" );
-    Microsoft::WRL::ComPtr<ID3D12Resource> EnvCubeMap;
-    DescriptorAllocation EnvCubeUAVHandle;
-    DescriptorAllocation EnvCubeSRVHandle;
+	std::shared_ptr<Texture> m_EnvCubeMap;
+	std::shared_ptr<Texture> m_IrradianceMap;
+	std::shared_ptr<Texture> m_HDRSkyTexture;
 
     // SKYBOX
     Box* SkyboxMesh = nullptr;
-
-
-    // IrradianceMap
-	Microsoft::WRL::ComPtr<ID3D12Resource> IrradianceMap;
-	DescriptorAllocation IrradianceMapSRVHandle;
-	DescriptorAllocation IrradianceMapUAVHandle;
-
-
-
 };
 

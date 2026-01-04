@@ -5,11 +5,13 @@
 #include "stb_image.h"
 Texture::Texture()
 {
+	m_Device = Device::GetInstance().GetD3DDevice();
 }
 
 Texture::Texture(const std::string InName)
 {
 	Name = InName;
+	m_Device = Device::GetInstance().GetD3DDevice();
 }
 
 Texture::~Texture()
@@ -61,17 +63,31 @@ void Texture::SetAsRenderTarget(ID3D12GraphicsCommandList* CmdList, Texture* Dep
 	}
 }
 
-void Texture::BindSRV(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
+void Texture::BindSRV_Graphics(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
 	// 1. 自动判断并切换状态
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 	// 2. 绑定句柄
-	CmdList->SetGraphicsRootDescriptorTable(RootParamIndex, SRVHandle.GpuHandle);
+	CmdList->SetGraphicsRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
 }
 
-void Texture::BindUAV(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
+void Texture::BindSRV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
+	// 1. 自动判断并切换状态
+	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	// 2. 绑定句柄
+	CmdList->SetComputeRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
+}
+
+void Texture::BindUAV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
+{
+	// 1. 自动判断并切换状态
+	TransitionTo(CmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+	// 2. 绑定句柄
+	CmdList->SetComputeRootDescriptorTable(RootParamIndex, GetUAV_G());
 }
 
 void Texture::LoadFromFile(
@@ -81,6 +97,7 @@ void Texture::LoadFromFile(
 	bool IsSRGB, 
 	bool IsHDR)
 {
+	m_Device = device;
 	int NrComponent;
 	int PixelByteSize = 0;
 	void* DataPtr = nullptr;
@@ -122,10 +139,89 @@ void Texture::LoadFromFile(
 		return;
 	}
 	CreateResourceHeap(device, CommandList, DataPtr, PixelByteSize);
-	CreateSRV(device, CommandList);
+	ViewFlags = TextureViewFlags::SRV;
+	CreateSRV(device);
 
 	stbi_image_free(DataPtr);
 
+}
+
+void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc, const void* InitialData)
+{
+	Width = Desc.Width;
+	Height = Desc.Height;
+	Format = Desc.Format;
+	ViewFlags = Desc.ViewFlags;
+	MipLevels = Desc.MipLevels;
+	ArraySize = Desc.ArraySize;
+	m_IsCube = Desc.IsCubeMap;
+
+	D3D12_RESOURCE_FLAGS d3dFlags = D3D12_RESOURCE_FLAG_NONE;
+	if (HasFlag(ViewFlags, TextureViewFlags::RTV)) d3dFlags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	if (HasFlag(ViewFlags, TextureViewFlags::DSV)) d3dFlags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	if (HasFlag(ViewFlags, TextureViewFlags::UAV)) d3dFlags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+	TexDesc = {};
+	TexDesc.Dimension = Desc.Dimension;
+	TexDesc.Width = Width;
+	TexDesc.Height = Height;
+	TexDesc.DepthOrArraySize = ArraySize;
+	TexDesc.MipLevels = MipLevels;
+	TexDesc.Format = GetTypelessFormat(Format); // 【关键】资源本身要是 Typeless
+	TexDesc.SampleDesc.Count = 1;
+	TexDesc.SampleDesc.Quality = 0;
+	TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	TexDesc.Flags = d3dFlags;
+	D3D12_CLEAR_VALUE optClear = {};
+	D3D12_CLEAR_VALUE* pClearValue = nullptr;
+
+	if (HasFlag(ViewFlags, TextureViewFlags::RTV))
+	{
+		optClear.Format = Format;
+		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // 默认为黑色
+		pClearValue = &optClear;
+	}
+	else if(HasFlag(ViewFlags, TextureViewFlags::DSV))
+	{
+		optClear.Format = GetDSVFormat(Format);
+		optClear.DepthStencil.Depth = m_ClearDepth;   // 默认为 1.0f
+		optClear.DepthStencil.Stencil = m_ClearStencil; // 默认为 0
+		pClearValue = &optClear;
+	}
+	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
+	if (HasFlag(ViewFlags, TextureViewFlags::DSV)) {
+		initialState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+	}
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+	HRESULT hr = m_Device->CreateCommittedResource(
+		&heapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&TexDesc,
+		initialState,
+		pClearValue, // 如果不是 RT/DSV，这里必须是 nullptr
+		IID_PPV_ARGS(&Resource)
+	);
+
+	if (FAILED(hr)) {
+		// Log Error: CreateCommittedResource Failed!
+		return;
+	}
+
+	Resource->SetName(std::wstring(Name.begin(), Name.end()).c_str());
+	CurrentState = initialState;
+
+	if (HasFlag(ViewFlags, TextureViewFlags::DSV)) {
+		CreateDSV(m_Device);
+	}
+	if (HasFlag(ViewFlags, TextureViewFlags::RTV)) {
+		CreateRTV(m_Device);
+	}
+	if (HasFlag(ViewFlags, TextureViewFlags::SRV)) {
+		CreateSRV(m_Device);
+	}
+	if (HasFlag(ViewFlags, TextureViewFlags::UAV)) {
+		CreateUAV(m_Device);
+	}
 }
 
 void Texture::CreateSRV(ID3D12Device* Device,
@@ -135,7 +231,7 @@ void Texture::CreateSRV(ID3D12Device* Device,
 {
 	// texture_on_gpu -> Create SRView ->  descriptor to srv heap table
 	auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
-	SRVHandle = DXRender::GetInstance().AllocateDescriptorHandle(size);
+	auto SRVHandle = GetSRV_C();
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
 	SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -156,14 +252,14 @@ void Texture::CreateSRV(ID3D12Device* Device,
 
 
 	}
-	Device->CreateShaderResourceView(Resource.Get(), &SrvDesc, SRVHandle.CpuHandle);
+	Device->CreateShaderResourceView(Resource.Get(), &SrvDesc, SRVHandle);
 
 
 }
 
 void Texture::CreateSRV(ID3D12Device* Device)
 {
-	m_SRVHandle = DXRender::GetInstance().AllocateDescriptorHandle(DXRender::GetInstance().GetSrvUavDescriptorSize());
+	m_SRVHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -177,25 +273,36 @@ void Texture::CreateSRV(ID3D12Device* Device)
 		srvDesc.Format = Format;
 	}
 
-	//todo:cubemap:
+	if (m_IsCube)
 	{
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+		srvDesc.TextureCube.MostDetailedMip = 0;
+		srvDesc.TextureCube.MipLevels = TexDesc.MipLevels;
+		srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+	}
+	else
+	{
+		// todo: handle array textures
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		srvDesc.Texture2D.MipLevels = TexDesc.MipLevels;
 		srvDesc.Texture2D.MostDetailedMip = 0;
 	}
-	Device->CreateShaderResourceView(Resource.Get(), &srvDesc, m_SRVHandle->CpuHandle);
+
+
+
+	Device->CreateShaderResourceView(Resource.Get(), &srvDesc, m_SRVHandle.value().CpuHandle);
 
 
 }
 
 void Texture::CreateUAV(ID3D12Device* Device)
 {
-	m_UAVHandle = DXRender::GetInstance().AllocateDescriptorHandle(DXRender::GetInstance().GetSrvUavDescriptorSize());
+	m_UAVHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.Format = Format;
 
-	if (/*isCubeMap*/ false)
+	if (m_IsCube)
 	{
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
 		uavDesc.Texture2DArray.MipSlice = 0;
@@ -214,12 +321,12 @@ void Texture::CreateUAV(ID3D12Device* Device)
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 		uavDesc.Texture2D.MipSlice = 0;
 	}
-	Device->CreateUnorderedAccessView(Resource.Get(), nullptr, &uavDesc, m_UAVHandle->CpuHandle);
+	Device->CreateUnorderedAccessView(Resource.Get(), nullptr, &uavDesc, m_UAVHandle.value().CpuHandle);
 }
 
 void Texture::CreateRTV(ID3D12Device* Device)
 {
-	m_RTVHandle = DXRender::GetInstance().AllocateDescriptorHandle(DXRender::GetInstance().GetRtvDescriptorSize());
+	m_RTVHandle = DescriptorAllocatorManager::GetInstance().AllocateRTV();
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = Format;
 	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -229,7 +336,7 @@ void Texture::CreateRTV(ID3D12Device* Device)
 
 void Texture::CreateDSV(ID3D12Device* Device)
 {
-	m_DSVHandle = DXRender::GetInstance().AllocateDescriptorHandle(DXRender::GetInstance().GetDsvDescriptorSize());
+	m_DSVHandle = DescriptorAllocatorManager::GetInstance().AllocateDSV();
 
 	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
 	dsvDesc.Format = GetDSVFormat(Format);
@@ -289,7 +396,7 @@ void Texture::CreateResourceHeap(ID3D12Device* device, ID3D12GraphicsCommandList
 
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetSRV()
+D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetSRV_G()
 {
 	if(!m_SRVHandle.has_value())
 	{
@@ -299,10 +406,23 @@ D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetSRV()
 		}
 		CreateSRV(Device::GetInstance().GetD3DDevice());
 	}
-	return m_SRVHandle->GpuHandle;
+	return m_SRVHandle.value().GpuHandle;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetUAV()
+D3D12_CPU_DESCRIPTOR_HANDLE Texture::GetSRV_C()
+{
+	if (!m_SRVHandle.has_value())
+	{
+		if (!HasFlag(ViewFlags, TextureViewFlags::SRV))
+		{
+			throw std::runtime_error("Texture '" + Name + "' was not created with SRV flag!");
+		}
+		CreateSRV(Device::GetInstance().GetD3DDevice());
+	}
+	return m_SRVHandle.value().CpuHandle;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetUAV_G()
 {
 	if(!m_UAVHandle.has_value())
 	{
@@ -312,7 +432,20 @@ D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetUAV()
 		}
 		CreateUAV(Device::GetInstance().GetD3DDevice());
 	}
-	return m_UAVHandle->GpuHandle;
+	return m_UAVHandle.value().GpuHandle;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Texture::GetUAV_C()
+{
+	if (!m_UAVHandle.has_value())
+	{
+		if (!HasFlag(ViewFlags, TextureViewFlags::UAV))
+		{
+			throw std::runtime_error("Texture '" + Name + "' was not created with UAV flag!");
+		}
+		CreateUAV(Device::GetInstance().GetD3DDevice());
+	}
+	return m_UAVHandle.value().CpuHandle;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE  Texture::GetRTV()
@@ -323,13 +456,19 @@ D3D12_CPU_DESCRIPTOR_HANDLE  Texture::GetRTV()
 		}
 		CreateRTV(Device::GetInstance().GetD3DDevice());
 	}
-	return m_RTVHandle->CpuHandle;
+	return m_RTVHandle.value().CpuHandle;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Texture::GetDSV()
 {
 	// todo 
-	return D3D12_CPU_DESCRIPTOR_HANDLE();
+	if (!m_DSVHandle.has_value()) {
+		if (!HasFlag(ViewFlags, TextureViewFlags::DSV)) {
+			throw std::runtime_error("Texture '" + Name + "' was not created with DSV flag!");
+		}
+		CreateDSV(Device::GetInstance().GetD3DDevice());
+	}
+	return m_DSVHandle.value().CpuHandle;
 }
 
 DXGI_FORMAT Texture::GetTypelessFormat(DXGI_FORMAT format)

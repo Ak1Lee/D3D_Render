@@ -6,6 +6,7 @@
 
 #include "Common.h"
 #include <optional>
+#include "DescriptorAllocator.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -38,6 +39,8 @@ struct TextureDesc
 
 	D3D12_CLEAR_VALUE* ClearValue = nullptr;
 
+	bool IsCubeMap = false;
+
 	static TextureDesc Create2D(UINT InWidth, UINT InHeight, DXGI_FORMAT InFormat, TextureViewFlags Views = TextureViewFlags::SRV)
 	{
 		TextureDesc Desc;
@@ -55,7 +58,7 @@ struct TextureDesc
 		TextureDesc Desc;
 		Desc.Width = InWidth;
 		Desc.Height = InHeight;
-		Desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		Desc.Format = DXGI_FORMAT_R24G8_TYPELESS;
 		Desc.ViewFlags = TextureViewFlags::DSV;
 		if(IsNeedSRV)
 		{
@@ -74,6 +77,7 @@ struct TextureDesc
 		Desc.Format = InFormat;
 		Desc.ViewFlags = Views;
 		Desc.ArraySize = 6; // Cube map has 6 faces
+		Desc.IsCubeMap = true;
 		return Desc;
 	}
 
@@ -109,12 +113,13 @@ public:
 
 
 
-	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandle() const { return SRVHandle.GpuHandle; }
-
-
 	// view get
-	D3D12_GPU_DESCRIPTOR_HANDLE GetSRV();
-	D3D12_GPU_DESCRIPTOR_HANDLE GetUAV();
+	D3D12_GPU_DESCRIPTOR_HANDLE GetSRV_G();
+	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV_C();
+
+	D3D12_GPU_DESCRIPTOR_HANDLE GetUAV_G();
+	D3D12_CPU_DESCRIPTOR_HANDLE GetUAV_C();
+
 	D3D12_CPU_DESCRIPTOR_HANDLE  GetRTV();
 	D3D12_CPU_DESCRIPTOR_HANDLE  GetDSV();
 
@@ -131,8 +136,10 @@ public:
 	//set as rt, pass in a depth texture if needed
 	void SetAsRenderTarget(ID3D12GraphicsCommandList* CmdList, Texture* DepthTexture);
 
-	void BindSRV(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex);
-	void BindUAV(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex);
+	void BindSRV_Graphics(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex);
+	void BindSRV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex);
+
+	void BindUAV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex);
 
 	// Getter
 	ID3D12Resource* GetResource() const { return Resource.Get(); }
@@ -163,13 +170,12 @@ protected:
 	D3D12_RESOURCE_DESC TexDesc = {};
 	std::string Name;
 
-	DescriptorAllocation SRVHandle;
 
 	// Views（使用 optional 实现懒加载）
-	std::optional<DescriptorAllocation> m_SRVHandle;
-	std::optional<DescriptorAllocation> m_UAVHandle;
-	std::optional<DescriptorAllocation> m_RTVHandle;
-	std::optional<DescriptorAllocation> m_DSVHandle;
+	std::optional<DescriptorHandle> m_SRVHandle;
+	std::optional<DescriptorHandle> m_UAVHandle;
+	std::optional<DescriptorHandle> m_RTVHandle;
+	std::optional<DescriptorHandle> m_DSVHandle;
 
 
 	DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -187,5 +193,5 @@ protected:
 
 	ID3D12Device* m_Device;
 
-	bool bUseUAVTextureCube = false;
+	bool m_IsCube = false;
 };
