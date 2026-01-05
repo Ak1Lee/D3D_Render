@@ -197,6 +197,8 @@ public:
     //todo 
 	void InitComputeRootSignature();
     void ComputeCubemap();
+	void InitIrradianceMapCompute();
+	void ComputeIrradianceMap();
 	void InitEnvCubeMapAndIrradianceMap();
 	void InitIrradianceMap();
 
@@ -313,6 +315,9 @@ private:
 	//compute shader
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePipelineState;
+
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeIrraRootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputeIrraPipelineState;
 
 	std::shared_ptr<Texture> m_EnvCubeMap;
 	std::shared_ptr<Texture> m_IrradianceMap;

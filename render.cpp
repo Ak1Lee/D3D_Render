@@ -145,6 +145,7 @@ void DXRender::InitDX(HWND hWnd)
     InitRootSignature();
 
     InitComputeRootSignature();
+    InitIrradianceMapCompute();
 
     CompileShader();
 
@@ -532,6 +533,72 @@ void DXRender::ComputeCubemap()
     // ExecuteCommandAndWaitForComplete();
 }
 
+void DXRender::ComputeIrradianceMap()
+{
+	CommandList->SetPipelineState(ComputeIrraPipelineState.Get());
+	CommandList->SetComputeRootSignature(ComputeIrraRootSignature.Get());
+    ID3D12DescriptorHeap* ppHeaps[] = {
+        DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+    };
+    CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	m_EnvCubeMap->BindSRV_Compute(CommandList.Get(), 0);
+	m_IrradianceMap->BindUAV_Compute(CommandList.Get(), 1);
+    CommandList->Dispatch(1, 1, 6);
+}
+
+
+void DXRender::InitIrradianceMapCompute()
+{
+    m_IrradianceMap = std::make_shared<Texture>("IrradianceMap");
+    auto cubeDesc = TextureDesc::CreateCube(
+        32,
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+        TextureViewFlags::SRV | TextureViewFlags::UAV
+    );
+    m_IrradianceMap->Create(CommandList.Get(), cubeDesc);
+
+
+    CD3DX12_DESCRIPTOR_RANGE srvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0
+    CD3DX12_DESCRIPTOR_RANGE uavRange(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // u0
+
+    DXRootSignature rootSigBuilder;
+    // t0 m_EnvCubeMap
+    rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+    // u0 IrradianceMap Output
+    rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+
+    D3D12_STATIC_SAMPLER_DESC LinearSampler = {};
+    LinearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    LinearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    LinearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    LinearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+
+    LinearSampler.MipLODBias = 0;
+    LinearSampler.MaxAnisotropy = 16;
+    LinearSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    LinearSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+
+    LinearSampler.MinLOD = 0.0f;
+    LinearSampler.MaxLOD = D3D12_FLOAT32_MAX;
+    LinearSampler.ShaderRegister = 0; // s0
+    LinearSampler.RegisterSpace = 0;
+    LinearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+
+    rootSigBuilder.AddStaticSampler(LinearSampler);
+
+    ComputeIrraRootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
+
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = ComputeIrraRootSignature.Get();
+    auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"IrradianceMapComputeShader", L"IrradianceMapCompute.hlsl", "CSMain", "cs_5_0");
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
+    Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputeIrraPipelineState));
+
+}
+
+
 void DXRender::InitEnvCubeMapAndIrradianceMap()
 {
 
@@ -543,13 +610,7 @@ void DXRender::InitEnvCubeMapAndIrradianceMap()
     );
     m_EnvCubeMap->Create(CommandList.Get(), cubeDesc);
 
-	m_IrradianceMap = std::make_shared<Texture>();
-    auto irradianceDesc = TextureDesc::CreateCube(
-        32,
-        DXGI_FORMAT_R16G16B16A16_FLOAT,
-        TextureViewFlags::SRV | TextureViewFlags::UAV
-	);
-	m_IrradianceMap->Create(CommandList.Get(), irradianceDesc);
+	//m_IrradianceMap = std::make_shared<Texture>();
 
 
     // sky box
@@ -692,6 +753,8 @@ void DXRender::Draw()
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
     ComputeCubemap();
+    ComputeIrradianceMap();
+
 
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
     ZPrePass.Execute(CommandList.Get());
