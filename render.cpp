@@ -85,6 +85,8 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     
     // InitEnvCubeMap 需要 CommandList 处于打开状态
     InitEnvCubeMapAndIrradianceMap();
+    InitPrefilterRootSignature();
+
 
 	//HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
 	m_HDRSkyTexture = std::make_shared<Texture>("HDRSky");
@@ -557,6 +559,20 @@ void DXRender::InitIrradianceMapCompute()
     );
     m_IrradianceMap->Create(CommandList.Get(), cubeDesc);
 
+    m_PrefilterMap = std::make_shared<Texture>("PrefilterMap");
+    auto cubeMipDesc = TextureDesc::CreateCube(
+        128,
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+        TextureViewFlags::SRV | TextureViewFlags::UAV
+    );
+    cubeMipDesc.Width = 128; // 起始大小
+    cubeMipDesc.Height = 128;
+    cubeMipDesc.MipLevels = 5; // 128, 64, 32, 16, 8
+    cubeMipDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    cubeMipDesc.ViewFlags = TextureViewFlags::SRV | TextureViewFlags::UAV;
+
+    m_PrefilterMap->Create(CommandList.Get(), cubeMipDesc);
+
 
     CD3DX12_DESCRIPTOR_RANGE srvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0
     CD3DX12_DESCRIPTOR_RANGE uavRange(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0); // u0
@@ -626,6 +642,66 @@ void DXRender::InitEnvCubeMapAndIrradianceMap()
 
 void DXRender::InitIrradianceMap()
 {
+}
+
+void DXRender::InitPrefilterRootSignature()
+{
+	DXRootSignature rootSigBuilder;
+	// Param 0 : t0 - EnvMap
+	rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+	// Param 1 : u0 - uav - PrefilterMap
+    rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+	// Param 2 : b0 - roughness
+	rootSigBuilder.Add32BitConstants(0, 1, 0, D3D12_SHADER_VISIBILITY_ALL);
+
+    D3D12_STATIC_SAMPLER_DESC LinearSampler = {};
+    LinearSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    LinearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    LinearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    LinearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+
+    LinearSampler.MipLODBias = 0;
+    LinearSampler.MaxAnisotropy = 16;
+    LinearSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    LinearSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+
+    LinearSampler.MinLOD = 0.0f;
+    LinearSampler.MaxLOD = D3D12_FLOAT32_MAX;
+    LinearSampler.ShaderRegister = 0; // s0
+    LinearSampler.RegisterSpace = 0;
+    LinearSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    rootSigBuilder.AddStaticSampler(LinearSampler);
+
+	ComputePrefilterRootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = ComputePrefilterRootSignature.Get();
+    auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"PrefilterMapCompute", L"PrefilterMapCompute.hlsl", "CSMain", "cs_5_0");
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
+    Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputePrefilterPipelineState));
+
+
+}
+
+void DXRender::ComputePrefilterMap()
+{
+    CommandList->SetPipelineState(ComputePrefilterPipelineState.Get());
+    CommandList->SetComputeRootSignature(ComputePrefilterRootSignature.Get());
+    ID3D12DescriptorHeap* ppHeaps[] = {
+        DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+    };
+    CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+    m_EnvCubeMap->BindSRV_Compute(CommandList.Get(), 0);
+    for (UINT mip = 0; mip < 5; ++mip)
+    {
+        float roughness = static_cast<float>(mip) / static_cast<float>(5);
+        CommandList->SetComputeRootDescriptorTable(1, m_PrefilterMap->GetUAV_G_ForMip(mip));
+        CommandList->SetComputeRoot32BitConstant(2, *reinterpret_cast<UINT*>(&roughness), 0);
+        UINT32 mipSize = m_PrefilterMap->GetWidth() >> mip;
+        UINT numGroups = max(1, mipSize / 32);
+        CommandList->Dispatch(numGroups, numGroups, 6);
+	}
 }
 
 void DXRender::CompileShader()
@@ -754,7 +830,7 @@ void DXRender::Draw()
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
     ComputeCubemap();
     ComputeIrradianceMap();
-
+    ComputePrefilterMap();
 
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
     ZPrePass.Execute(CommandList.Get());

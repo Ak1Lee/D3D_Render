@@ -26,6 +26,13 @@ public:
 	// 添加Root Constant
 	void AddRootConstant(UINT shaderRegister, UINT num32BitValues, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
+	// 参数说明：
+	// shaderRegister: 对应 HLSL 里的 register(bX)，例如 0 对应 b0
+	// numValues:      有多少个 32位数据 (1个 float 就是 1，float4 就是 4)
+	// registerSpace:  对应 HLSL 里的 spaceX，通常是 0
+	// visibility:     谁能看到这个参数 (VS/PS/ALL)
+	void Add32BitConstants(UINT shaderRegister, UINT numValues, UINT registerSpace = 0, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
+
 	void AddStaticSampler(const D3D12_STATIC_SAMPLER_DESC& samplerDesc);
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> Build(ID3D12Device* device, D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);

@@ -118,6 +118,8 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV_C();
 
 	D3D12_GPU_DESCRIPTOR_HANDLE GetUAV_G();
+	D3D12_GPU_DESCRIPTOR_HANDLE GetUAV_G_ForMip(UINT MipSlice);
+
 	D3D12_CPU_DESCRIPTOR_HANDLE GetUAV_C();
 
 	D3D12_CPU_DESCRIPTOR_HANDLE  GetRTV();
@@ -158,6 +160,8 @@ protected:
 
 	void CreateSRV(ID3D12Device* Device);
 	void CreateUAV(ID3D12Device* Device);
+	// for specular ibl
+	void CreateUAV_ForMip(ID3D12Device* Device, UINT MipSlice);
 	void CreateRTV(ID3D12Device* Device);
 	void CreateDSV(ID3D12Device* Device);
 
@@ -194,4 +198,6 @@ protected:
 	ID3D12Device* m_Device;
 
 	bool m_IsCube = false;
+
+	std::vector<DescriptorHandle> m_MipUAVHandles;
 };

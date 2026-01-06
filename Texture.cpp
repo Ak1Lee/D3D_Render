@@ -297,31 +297,67 @@ void Texture::CreateSRV(ID3D12Device* Device)
 
 void Texture::CreateUAV(ID3D12Device* Device)
 {
-	m_UAVHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+	for(UINT i = 0; i < MipLevels; ++i)
+	{
+		CreateUAV_ForMip(Device, i);
+	}
+	if(!m_MipUAVHandles.empty())
+	{
+		m_UAVHandle = m_MipUAVHandles[0];
+	}
 
+	//m_UAVHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+
+	//D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+	//uavDesc.Format = Format;
+
+	//if (m_IsCube)
+	//{
+	//	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+	//	uavDesc.Texture2DArray.MipSlice = 0;
+	//	uavDesc.Texture2DArray.FirstArraySlice = 0;
+	//	uavDesc.Texture2DArray.ArraySize = 6;
+	//}
+	//else if (ArraySize > 1)
+	//{
+	//	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+	//	uavDesc.Texture2DArray.MipSlice = 0;
+	//	uavDesc.Texture2DArray.FirstArraySlice = 0;
+	//	uavDesc.Texture2DArray.ArraySize = ArraySize;
+	//}
+	//else
+	//{
+	//	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+	//	uavDesc.Texture2D.MipSlice = 0;
+	//}
+	//Device->CreateUnorderedAccessView(Resource.Get(), nullptr, &uavDesc, m_UAVHandle.value().CpuHandle);
+}
+
+void Texture::CreateUAV_ForMip(ID3D12Device* Device, UINT MipSlice)
+{
+	DescriptorHandle handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.Format = Format;
-
-	if (m_IsCube)
+	if (m_IsCube || ArraySize > 1)
 	{
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-		uavDesc.Texture2DArray.MipSlice = 0;
-		uavDesc.Texture2DArray.FirstArraySlice = 0;
-		uavDesc.Texture2DArray.ArraySize = 6;
-	}
-	else if (ArraySize > 1)
-	{
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-		uavDesc.Texture2DArray.MipSlice = 0;
+		uavDesc.Texture2DArray.MipSlice = MipSlice;
 		uavDesc.Texture2DArray.FirstArraySlice = 0;
 		uavDesc.Texture2DArray.ArraySize = ArraySize;
+		uavDesc.Texture2DArray.PlaneSlice = 0;
 	}
 	else
 	{
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		uavDesc.Texture2D.MipSlice = 0;
+		uavDesc.Texture2D.MipSlice = MipSlice;
+		uavDesc.Texture2D.PlaneSlice = 0;
 	}
-	Device->CreateUnorderedAccessView(Resource.Get(), nullptr, &uavDesc, m_UAVHandle.value().CpuHandle);
+	Device->CreateUnorderedAccessView(Resource.Get(), nullptr, &uavDesc, handle.CpuHandle);
+	if (m_MipUAVHandles.size() <= MipSlice) {
+		m_MipUAVHandles.resize(MipSlice + 1);
+	}
+	m_MipUAVHandles[MipSlice] = handle;
+
 }
 
 void Texture::CreateRTV(ID3D12Device* Device)
@@ -433,6 +469,26 @@ D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetUAV_G()
 		CreateUAV(Device::GetInstance().GetD3DDevice());
 	}
 	return m_UAVHandle.value().GpuHandle;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE Texture::GetUAV_G_ForMip(UINT MipSlice)
+{
+	if (!HasFlag(ViewFlags, TextureViewFlags::UAV))
+	{
+		throw std::runtime_error("Texture '" + Name + "' was not created with UAV flag!");
+	}
+
+	if (MipSlice >= MipLevels)
+	{
+		throw std::runtime_error("Requested MipSlice exceeds available MipLevels!");
+	}
+
+	if (m_MipUAVHandles.size() <= MipSlice)
+	{
+		CreateUAV_ForMip(Device::GetInstance().GetD3DDevice(), MipSlice);
+	}
+
+	return m_MipUAVHandles[MipSlice].GpuHandle;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Texture::GetUAV_C()

@@ -201,6 +201,8 @@ public:
 	void ComputeIrradianceMap();
 	void InitEnvCubeMapAndIrradianceMap();
 	void InitIrradianceMap();
+	void InitPrefilterRootSignature();
+	void ComputePrefilterMap();
 
 private:
     DXRender();
@@ -319,9 +321,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeIrraRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputeIrraPipelineState;
 
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputePrefilterRootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePrefilterPipelineState;
+
 	std::shared_ptr<Texture> m_EnvCubeMap;
 	std::shared_ptr<Texture> m_IrradianceMap;
 	std::shared_ptr<Texture> m_HDRSkyTexture;
+	std::shared_ptr<Texture> m_PrefilterMap;
 
     // SKYBOX
     Box* SkyboxMesh = nullptr;
