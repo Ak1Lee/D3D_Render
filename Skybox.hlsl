@@ -62,5 +62,8 @@ PSInput VSMain(VertexIn In)
 
 float4 PSMain(PSInput pin) : SV_Target
 {
-    return g_CubeMap.Sample(g_LinearSampler, pin.PosL);
+    float exposure = 0.3f;
+    float4 finalColor = g_CubeMap.Sample(g_LinearSampler, pin.PosL) * exposure;
+    finalColor = pow(finalColor, 1.0 / 2.2);
+    return finalColor;
 }
