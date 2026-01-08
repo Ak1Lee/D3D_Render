@@ -33,6 +33,13 @@ Texture2D g_ShadowMap : register(t0); // 对应 Slot 3
 Texture2D g_ShadowMask : register(t1); // 对应 Slot 3
 
 SamplerState g_samShadow : register(s0); // 比较采样器 (Comparison Sampler)
+SamplerState g_Sampler : register(s2); // Linear Wrap (用于 CubeMap)
+SamplerState g_ClampedSampler : register(s3); // Linear Clamp (用于 LUT，防止黑边)
+
+
+TextureCube g_IrradianceMap : register(t10);
+TextureCube g_PrefilterMap : register(t11);
+Texture2D g_BRDFLUT : register(t12);
 
 
 struct VertexIn
@@ -96,6 +103,14 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+// ----------------------------------------------------------------------------
+// IBL 专用的菲涅尔函数 (加入粗糙度修正)
+// ----------------------------------------------------------------------------
+float3 fresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+    return F0 + (max(1.0 - roughness, F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 PSInput VSMain(VertexIn In)
 {
     PSInput output;
@@ -123,6 +138,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 N = input.normal;
     float3 V = normalize(gCameraPos - input.worldposition);
+    float3 R = reflect(-V, N);
     float3 F0 = float3(0.04, 0.04, 0.04);
     F0 = lerp(F0, albedo, metallic);
     float3 L = gLightDir;
@@ -136,19 +152,33 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 numerator = NDF * G * F;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 防止除零
-    float3 specular = numerator / denominator;
+    float3 specularDirect = numerator / denominator;
     
-    // 计算漫反射比例 kD
-    float3 kS = F;
-    float3 kD = float3(1.0, 1.0, 1.0) - kS;
-    metallic = 0;
-    kD *= 1.0 - metallic;
-    
+    float3 kS_Direct = F;
+    float3 kD_Direct = float3(1.0, 1.0, 1.0) - kS_Direct;
 
+    kD_Direct *= 1.0 - metallic;
     float NdotL = max(dot(N, L), 0.0);
-    float3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
+    // 直射光结果 Lo
+    float3 Lo = (kD_Direct * albedo / PI + specularDirect) * gLightColor * NdotL;
     
-    float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
+    // 间接光照部分
+    // IBL Fernle
+    float3 kS_IBL = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+    float3 kD_IBL = 1.0 - kS_IBL;
+    kD_IBL *= (1.0 - metallic);
+    // IBL diffuse
+    float3 irradiance = g_IrradianceMap.Sample(g_Sampler, N).rgb;
+    float3 diffuseIBL = irradiance * albedo;
+    // Specular IBL
+    const float MAX_REFLECTION_LOD = 4.0;
+    float3 prefilteredColor = g_PrefilterMap.SampleLevel(g_Sampler, R, roughness * MAX_REFLECTION_LOD).rgb;
+    float2 brdf = g_BRDFLUT.Sample(g_ClampedSampler, float2(max(dot(N, V), 0.0), roughness)).rg;
+    float3 specularIBL = prefilteredColor * (kS_IBL * brdf.x + brdf.y);
+    
+    
+    float3 ambient = (kD_IBL * diffuseIBL + specularIBL) * ao * 0.4;
+    // float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
     
     float3 color = ambient + Lo;
     
@@ -157,23 +187,10 @@ float4 PSMain(PSInput input) : SV_TARGET
 // int3 的第三个参数是 mipmap level，通常填 0
     int3 screenPos = int3(input.position.xy, 0);
 
-// 2. 直接从纹理加载数据 (Load 不需要采样器，也不会有浮点误差)
     float shadowFactor = g_ShadowMask.Load(screenPos).r;
 
-// 3. 调试：直接输出看看 (如果是阴影区应该是0，亮部是1)
-    // return float4(shadowFactor, shadowFactor, shadowFactor, 1.0f);
-    
-    
-    
-    // float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
-    float3 finalColor = color * shadowFactor;
-    // finalColor.r = closestDepth;
-    // finalColor.g = currentDepth;
-    
-    // finalColor.b = ProjCoords.x;
-    // finalColor.a = ProjCoords.y;
-    
-    // finalColor.rg = ProjCoords.xy;
-    return float4(finalColor, 1.0);;
-    //return float4(N,1.0);
+    //float3 finalColor = color * shadowFactor;
+    float3 finalColor = ambient + (Lo * shadowFactor);
+    finalColor = pow(finalColor, 1.0 / 2.2);
+    return float4(finalColor, 1.0);
 }

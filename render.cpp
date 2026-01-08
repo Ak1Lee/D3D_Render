@@ -86,11 +86,12 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     // InitEnvCubeMap 需要 CommandList 处于打开状态
     InitEnvCubeMapAndIrradianceMap();
     InitPrefilterRootSignature();
+    InitBRDFLUT();
 
 
 	//HDRTex.LoadHDRFromFile(CommandList.Get(), ".\\resources\\puresky_2k.hdr");
 	m_HDRSkyTexture = std::make_shared<Texture>("HDRSky");
-	m_HDRSkyTexture->LoadFromFile(Device::GetInstance().GetD3DDevice(),CommandList.Get(), ".\\resources\\puresky_2k.hdr",false,true);
+	m_HDRSkyTexture->LoadFromFile(Device::GetInstance().GetD3DDevice(),CommandList.Get(), ".\\resources\\venice_sunset_1k.hdr",false,true);
 
     ExecuteCommandAndWaitForComplete();
 
@@ -120,6 +121,8 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         MessageBox(NULL, L"ImGui_ImplDX12_Init Failed!", L"Error", MB_OK);
         return;
     }
+
+    PreDraw();
 
 }
 
@@ -184,25 +187,77 @@ void DXRender::InitDX(HWND hWnd)
         MeshList.push_back(BoxPtr);
     }
 
-    for (int i = 0; i < 6; ++i)
-    {
-		auto SpherePtr = new Sphere();
-		SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
-		SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-		//SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
-        DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-        SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
-		SpherePtr->SetMaterialByName("Mat_Gold");
-		MeshList.push_back(SpherePtr);
-	}
+ //   for (int i = 0; i < 6; ++i)
+ //   {
+	//	auto SpherePtr = new Sphere();
+	//	SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
+	//	SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+	//	//SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
+ //       DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+ //       SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+	//	SpherePtr->SetMaterialByName("Mat_Gold");
+	//	MeshList.push_back(SpherePtr);
+	//}
+    int rows = 7;
+    int cols = 7;
+    float spacing = 2.5f;
 
-	//auto PanelPtr = new Plane(10,10,10,10);
-	//PanelPtr->SetPosition(0.0f, -2.0f, 0.0f);
-	//PanelPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
- //   DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-	////PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
- //   PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), AllocInfo);
-	//PanelPtr->SetMaterialByName("Mat_Red");
+    for (int y = 0; y < rows; ++y)
+    {
+        // 计算金属度 (0.0 -> 1.0)
+        float metallic = (float)y / (float)(rows - 1);
+
+        for (int x = 0; x < cols; ++x)
+        {
+            // 计算粗糙度 (0.05 -> 1.0)
+            // Clamp 到 0.05 是为了防止除0错误导致亮点闪烁
+            float roughness = (std::max)((float)x / (float)(cols - 1), 0.05f);
+
+            // 1. 【核心修改】动态创建一个独一无二的材质
+            // 给它起个唯一的名字，比如 "Mat_Test_0_0", "Mat_Test_0_1"
+            std::string matName = "Mat_Test_" + std::to_string(x) + "_" + std::to_string(y);
+
+            // 使用你现有的构造函数
+            Material* tempMat = new Material(matName, RootSignature, TempPsoDesc);
+
+            // 2. 设置这个材质特有的参数
+            // 【重要】Albedo 设为纯红色 (1.0, 0.0, 0.0)
+            // 这样你可以观察：非金属(下层)反白光，金属(上层)反红光
+            tempMat->SetConstantData({
+                {1.0f, 0.0f, 0.0f, 1.0f}, // Albedo: 纯红
+                roughness,                // 当前循环的粗糙度
+                metallic,                 // 当前循环的金属度
+                1.0f, 0.0f                // AO
+                });
+
+            // 3. 如果你的 MaterialManager 需要注册，记得注册进去
+            // MaterialManager::GetInstance().AddMaterial(tempMat); 
+            // 假设你目前是自己管理的，确保不要内存泄漏即可
+
+            // 4. 创建球体
+            auto SpherePtr = new Sphere();
+
+            // 居中排列位置
+            float posX = (x - (cols / 2)) * spacing;
+            float posY = (y - (rows / 2)) * spacing + 10;
+            SpherePtr->SetPosition(posX, posY, 0.0f);
+
+            SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
+
+            DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+            SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+
+            // 5. 绑定刚才创建的材质
+            // 如果你的 Sphere 支持直接传指针：
+            // SpherePtr->SetMaterial(tempMat);
+
+            // 或者如果必须传名字：
+            SpherePtr->SetMaterialByName(matName);
+
+            MeshList.push_back(SpherePtr);
+        }
+    }
+
 
     auto BoxPtr = new Box();
     BoxPtr->SetPosition(0.0f, -2.0f, 0.0f);
@@ -418,6 +473,15 @@ void DXRender::InitRootSignature()
     // t1 for shadow mask
     rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
+    // ibl
+    // --- IBL 贴图表 (Index 5) ---
+    // t10, t11, t12
+    // Index 5: t10 (Irradiance)
+    rootSigBuilder.AddSRVDescriptorTable(10, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 6: t11 (Prefilter)
+    rootSigBuilder.AddSRVDescriptorTable(11, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 7: t12 (BRDF LUT)
+    rootSigBuilder.AddSRVDescriptorTable(12, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -468,6 +532,23 @@ void DXRender::InitRootSignature()
     samplerLinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootSigBuilder.AddStaticSampler(samplerLinear);
 
+    //IBL Linear + Clamp
+    D3D12_STATIC_SAMPLER_DESC samplerIBL = {};
+    samplerIBL.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 必须是线性
+    samplerIBL.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 【关键】Clamp
+    samplerIBL.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 【关键】Clamp
+    samplerIBL.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerIBL.MipLODBias = 0;
+    samplerIBL.MaxAnisotropy = 16;
+    samplerIBL.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerIBL.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerIBL.MinLOD = 0.0f;
+    samplerIBL.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerIBL.ShaderRegister = 3; // 绑定到 s3
+    samplerIBL.RegisterSpace = 0;
+    samplerIBL.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    rootSigBuilder.AddStaticSampler(samplerIBL);
+
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
@@ -509,8 +590,14 @@ void DXRender::InitComputeRootSignature()
 	psoDesc.pRootSignature = ComputeRootSignature.Get();
 	auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"TestCS", L"Equirect2Cube.hlsl", "CSMain", "cs_5_0");
 	psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
-	Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputePipelineState));
 
+
+    HRESULT hr = Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputePipelineState));
+    if (FAILED(hr)) {
+        // 这里打断点，hr 通常是 E_INVALIDARG (0x80070057)
+        // 意味着参数没填对
+        throw std::runtime_error("Failed to create Compute PSO");
+    }
 }
 
 void DXRender::ComputeCubemap()
@@ -545,7 +632,7 @@ void DXRender::ComputeIrradianceMap()
     CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 	m_EnvCubeMap->BindSRV_Compute(CommandList.Get(), 0);
 	m_IrradianceMap->BindUAV_Compute(CommandList.Get(), 1);
-    CommandList->Dispatch(1, 1, 6);
+    CommandList->Dispatch(4, 4, 6);
 }
 
 
@@ -553,7 +640,7 @@ void DXRender::InitIrradianceMapCompute()
 {
     m_IrradianceMap = std::make_shared<Texture>("IrradianceMap");
     auto cubeDesc = TextureDesc::CreateCube(
-        32,
+        128,
         DXGI_FORMAT_R16G16B16A16_FLOAT,
         TextureViewFlags::SRV | TextureViewFlags::UAV
     );
@@ -610,8 +697,10 @@ void DXRender::InitIrradianceMapCompute()
     psoDesc.pRootSignature = ComputeIrraRootSignature.Get();
     auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"IrradianceMapComputeShader", L"IrradianceMapCompute.hlsl", "CSMain", "cs_5_0");
     psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
-    Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputeIrraPipelineState));
-
+    HRESULT hr = Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputeIrraPipelineState));
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Compute PSO");
+    }
 }
 
 
@@ -704,6 +793,46 @@ void DXRender::ComputePrefilterMap()
 	}
 }
 
+void DXRender::InitBRDFLUT()
+{
+    m_BrdfLUTTexture = std::make_shared<Texture>("BRDFLUT");
+
+	TextureDesc brdfDesc;
+	brdfDesc.Width = 512;
+	brdfDesc.Height = 512;
+    brdfDesc.MipLevels = 1;      
+	brdfDesc.IsCubeMap = false;
+    brdfDesc.Format = DXGI_FORMAT_R16G16_FLOAT;
+    brdfDesc.ViewFlags = TextureViewFlags::SRV | TextureViewFlags::UAV;
+
+	m_BrdfLUTTexture->Create(CommandList.Get(), brdfDesc);
+
+    ComputeBRDFLUTRootSignature = ComputePrefilterRootSignature;
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = ComputeBRDFLUTRootSignature.Get();
+    auto CSShader = DXShaderManager::GetInstance().CreateOrFindShader(L"BRDFLUTCompute", L"BRDFLUTCompute.hlsl", "CSMain", "cs_5_0");
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CSShader->GetBytecode()->GetBufferPointer()), CSShader->GetBytecode()->GetBufferSize() };
+    Device::GetInstance().GetD3DDevice()->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&ComputeBRDFLUTPipelineState));
+
+
+
+}
+
+void DXRender::ComputeBRDFLUT()
+{
+    CommandList->SetPipelineState(ComputeBRDFLUTPipelineState.Get());
+    CommandList->SetComputeRootSignature(ComputeBRDFLUTRootSignature.Get());
+    ID3D12DescriptorHeap* ppHeaps[] = {
+        DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+    };
+    CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	m_BrdfLUTTexture->BindUAV_Compute(CommandList.Get(), 1);
+    // 512 / 32 = 16
+    CommandList->Dispatch(16, 16, 1);
+
+}
+
 void DXRender::CompileShader()
 {
 
@@ -792,6 +921,7 @@ void DXRender::InitMaterial()
     TestPsoDesc.NumRenderTargets = 1;
     TestPsoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     TestPsoDesc.SampleDesc.Count = 1;
+	TempPsoDesc = TestPsoDesc;
 
 	Material* TestMaterial = new Material("TestMaterial", RootSignature, TestPsoDesc);
 
@@ -817,6 +947,7 @@ void DXRender::InitMaterial()
         1.0f, 0.0f
         });
 
+
 }
 
 void DXRender::CreateFence()
@@ -824,13 +955,24 @@ void DXRender::CreateFence()
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence)));
 }
 
-void DXRender::Draw()
+void DXRender::PreDraw()
 {
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
     ComputeCubemap();
     ComputeIrradianceMap();
     ComputePrefilterMap();
+    ComputeBRDFLUT();
+    ExecuteCommandAndWaitForComplete();
+}
+
+void DXRender::Draw()
+{
+    ThrowIfFailed(CommandAllocator->Reset());
+    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
+
+    // ComputeIrradianceMap();
+
 
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
     ZPrePass.Execute(CommandList.Get());
@@ -1127,6 +1269,9 @@ void DXRender::InitPasses()
 		//CommandList->SetGraphicsRootDescriptorTable(4, ShadowMaskSRVHandle.GpuHandle);
 		m_ShadowMap->BindSRV_Graphics(CommandList, 3);
 		m_ShadowMask->BindSRV_Graphics(CommandList, 4);
+		m_IrradianceMap->BindSRV_Graphics(CommandList, 5);
+		m_PrefilterMap->BindSRV_Graphics(CommandList, 6);
+		m_BrdfLUTTexture->BindSRV_Graphics(CommandList, 7);
 
         for (auto MeshElement : MeshList)
         {

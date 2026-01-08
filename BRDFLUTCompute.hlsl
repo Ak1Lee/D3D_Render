@@ -1,5 +1,5 @@
 TextureCube g_EnvironmentMap : register(t0);
-RWTexture2DArray<float4> g_PrefilterMap : register(u0);
+RWTexture2D<float2> g_LUT : register(u0);
 SamplerState g_Sampler : register(s0);
 
 cbuffer ConstBuffer : register(b0)
@@ -48,6 +48,73 @@ float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
     return normalize(sampleVec);
 }
 
+// --- 3. 几何遮蔽函数 (Geometry Schlick-GGX) ---
+// Direct Light: k = (a+1)^2 / 8
+// IBL:          k = a^2 / 2
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float a = roughness;
+    float k = (a * a) / 2.0;
+
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+float2 IntegrateBRDF(float NdotV, float roughness)
+{
+    // 构建视线向量 V
+    // 假设 V 在 XZ 平面上
+    float3 V;
+    V.x = sqrt(1.0 - NdotV * NdotV);
+    V.y = 0.0;
+    V.z = NdotV;
+
+    float A = 0.0; // Scale
+    float B = 0.0; // Bias
+
+    float3 N = float3(0.0, 0.0, 1.0);
+
+    const uint SAMPLE_COUNT = 1024u;
+    
+    for (uint i = 0u; i < SAMPLE_COUNT; ++i)
+    {
+        float2 Xi = Hammersley(i, SAMPLE_COUNT);
+        float3 H = ImportanceSampleGGX(Xi, N, roughness);
+        float3 L = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0);
+        float NdotH = max(H.z, 0.0);
+        float VdotH = max(dot(V, H), 0.0);
+
+        if (NdotL > 0.0)
+        {
+            float G = GeometrySmith(N, V, L, roughness);
+            
+            // 下面是 Split Sum 的数学推导结果：
+            float G_Vis = (G * VdotH) / (NdotH * NdotV);
+            float Fc = pow(1.0 - VdotH, 5.0);
+
+            A += (1.0 - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    
+    A /= float(SAMPLE_COUNT);
+    B /= float(SAMPLE_COUNT);
+    
+    return float2(A, B);
+}
 // --- 辅助函数：计算 CubeMap 面方向 ---
 float3 GetDirection(uint faceIdx, float2 uv)
 {
@@ -76,53 +143,25 @@ float3 GetDirection(uint faceIdx, float2 uv)
     return normalize(dir);
 }
 
-// 线程组定义：每组处理 32x32 个像素，Z=1
+// --- Main ---
 [numthreads(32, 32, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
-    uint width, height, elements;
-    g_PrefilterMap.GetDimensions(width, height, elements);
+    uint width, height;
+    g_LUT.GetDimensions(width, height);
+    
     if (DTid.x >= width || DTid.y >= height)
         return;
-    
-    float2 uv = (float2(DTid.xy) + 0.5) / float2(width, height);
-    uv = uv * 2.0 - 1.0;
-    uv.y = -uv.y;
-    
-    float3 N = GetDirection(DTid.z, uv);
-    float3 R = N;
-    float3 V = R;
 
-    float3 prefilteredColor = float3(0.0, 0.0, 0.0);
-    float totalWeight = 0.0;
-    
-    const uint SAMPLE_COUNT = 1024u;
-    for (uint i = 0u; i < SAMPLE_COUNT; ++i)
-    {
-        float2 Xi = Hammersley(i, SAMPLE_COUNT);
-        float3 H = ImportanceSampleGGX(Xi, N, g_Roughness);
-        float3 L = normalize(2.0 * dot(V, H) * H - V);
-        float NdotL = max(dot(N, L), 0.0);
-        if (NdotL > 0.0)
-        {
-            float sourceMip = 0.0;
-            if (g_Roughness > 0.1)
-            {
-                sourceMip = 1.0 + g_Roughness * 2.0;
-            }
-            float3 envColor = g_EnvironmentMap.SampleLevel(g_Sampler, L, 0).rgb;
-            float maxBrightness = 60.0f;
-            envColor = min(envColor, maxBrightness);
-            prefilteredColor += envColor * NdotL;
-            totalWeight += NdotL;
-        }
-    }
-    prefilteredColor = prefilteredColor / totalWeight;
+    // 归一化坐标作为输入参数
+    // DTid.x -> NdotV (0.0 ~ 1.0)
+    // DTid.y -> Roughness (0.0 ~ 1.0)
+    float NdotV = (float(DTid.x) + 0.5) / float(width);
+    float roughness = (float(DTid.y) + 0.5) / float(height);
 
-    g_PrefilterMap[DTid] = float4(prefilteredColor, 1.0);
-    
-    // float3 uvw = float3((float2(DTid.xy) + 0.5f) / float2(width, height) * 2.0 - 1.0, 1.0);
-    
-    // g_PrefilterMap[DTid] = float4(g_Roughness, g_Roughness, g_Roughness, 1.0);
+    // 积分
+    float2 envBRDF = IntegrateBRDF(NdotV, roughness);
 
+    // 写入
+    g_LUT[DTid.xy] = envBRDF;
 }

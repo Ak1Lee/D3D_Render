@@ -171,6 +171,8 @@ public:
 
     void CreateFence();
 
+    void PreDraw();
+
     void Draw();
 
     ~DXRender();
@@ -203,7 +205,8 @@ public:
 	void InitIrradianceMap();
 	void InitPrefilterRootSignature();
 	void ComputePrefilterMap();
-
+    void InitBRDFLUT();
+	void ComputeBRDFLUT();
 private:
     DXRender();
 
@@ -324,12 +327,19 @@ private:
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputePrefilterRootSignature;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputePrefilterPipelineState;
 
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeBRDFLUTRootSignature;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> ComputeBRDFLUTPipelineState;
+
 	std::shared_ptr<Texture> m_EnvCubeMap;
 	std::shared_ptr<Texture> m_IrradianceMap;
 	std::shared_ptr<Texture> m_HDRSkyTexture;
 	std::shared_ptr<Texture> m_PrefilterMap;
+	std::shared_ptr<Texture> m_BrdfLUTTexture;
 
     // SKYBOX
     Box* SkyboxMesh = nullptr;
+
+    // temp use
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC TempPsoDesc;
 };
 
