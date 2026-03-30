@@ -92,11 +92,13 @@ private:
 struct FrameResource
 {
     ComPtr<ID3D12CommandAllocator> CmdAllocator;
+
     ComPtr<ID3D12Resource> LightConstantBuffer;
-    ComPtr<ID3D12Resource> LightCB;
-    ComPtr<ID3D12Resource> MaterialCB;
-    UINT64 FenceValue = 0;                         
-    UINT8* pCbvDataBegin = nullptr;
+    UINT8* LightConstantBufferMappedData = nullptr;
+    ComPtr<ID3D12Resource> MaterialConstantBuffer;
+    UINT8* MaterialConstantBufferMappedData = nullptr;
+
+
 };
 
 
