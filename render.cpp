@@ -122,6 +122,17 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return;
     }
 
+
+    ThrowIfFailed(CommandAllocator->Reset());
+    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
+
+    ComputeCubemap();
+    ComputeIrradianceMap();
+    ComputePrefilterMap();
+    ComputeBRDFLUT();
+
+    ExecuteCommandAndWaitForComplete();
+
     PreDraw();
 
 }
@@ -187,17 +198,6 @@ void DXRender::InitDX(HWND hWnd)
         MeshList.push_back(BoxPtr);
     }
 
- //   for (int i = 0; i < 6; ++i)
- //   {
-	//	auto SpherePtr = new Sphere();
-	//	SpherePtr->SetPosition(i * 3.0f - 7.f, 3.0f, 0.0f);
-	//	SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-	//	//SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i + 6);
- //       DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
- //       SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
-	//	SpherePtr->SetMaterialByName("Mat_Gold");
-	//	MeshList.push_back(SpherePtr);
-	//}
     int rows = 7;
     int cols = 7;
     float spacing = 2.5f;
@@ -957,13 +957,7 @@ void DXRender::CreateFence()
 
 void DXRender::PreDraw()
 {
-    ThrowIfFailed(CommandAllocator->Reset());
-    ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
-    ComputeCubemap();
-    ComputeIrradianceMap();
-    ComputePrefilterMap();
-    ComputeBRDFLUT();
-    ExecuteCommandAndWaitForComplete();
+
 }
 
 void DXRender::Draw()
@@ -1057,6 +1051,16 @@ DXRender::~DXRender()
     {
         delete SkyboxMesh;
 	}
+    for (auto* elem : MeshList)
+    {
+		if (elem)
+		delete elem;
+    }
+    MaterialManager& Manager = MaterialManager::GetInstance();
+ //   for (auto& pair : Manager.Materials)
+ //   {
+ //       
+	//}
 }
 
 void DXRender::InitShadowMap()
@@ -1633,141 +1637,4 @@ GraphicsPSOBuilder& GraphicsPSOBuilder::SetShaders(const std::wstring& vsName, c
         m_Desc.PS = { nullptr, 0 };
     }
     return *this;
-}
-
-void TextureTmp::LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB)
-{
-
-    // texture->cpu->gpu and destory on cpu
-	auto device = Device::GetInstance().GetD3DDevice();
-
-
-    int NrComponent;
-	unsigned char* Data = stbi_load(
-		Filename.c_str(),
-		&Width,
-		&Height,
-		&NrComponent,
-		4
-	);
-
-    if (!Data)
-    {
-        return;
-    }
-	Format = isRGB ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
-
-    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 4, Resource, UploadHeap);
-	stbi_image_free(Data);
-
-    auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
-	Handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-
-    // SRV
-	D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-	SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	SrvDesc.Format = Format;
-	SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    SrvDesc.Texture2D.MipLevels = 1;
-
-    device->CreateShaderResourceView(Resource.Get(), &SrvDesc, Handle.CpuHandle);
-
-}
-
-void TextureTmp::LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename)
-{
-    // texture->cpu->gpu and destory on cpu
-    auto device = Device::GetInstance().GetD3DDevice();
-
-
-    int NrComponent;
-    float* Data = stbi_loadf(
-        Filename.c_str(),
-        &Width,
-        &Height,
-        &NrComponent,
-        4
-    );
-
-    if (!Data)
-    {
-        OutputDebugStringA("ERROR: Failed to load HDR texture: ");
-        OutputDebugStringA(Filename.c_str());
-        OutputDebugStringA("\n");
-        return;
-    }
-    Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-
-    CreateTextureResource(device, CmdList, Data, Width, Height, Format, 16, Resource, UploadHeap);
-    stbi_image_free(Data);
-
-    auto size = DXRender::GetInstance().GetSrvUavDescriptorSize();
-	Handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-
-    // SRV
-    D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-    SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    SrvDesc.Format = Format;
-    SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    SrvDesc.Texture2D.MipLevels = 1;
-
-    device->CreateShaderResourceView(Resource.Get(), &SrvDesc, Handle.CpuHandle);
-
-}
-
-void TextureTmp::Release()
-{
-    Resource.Reset();
-    UploadHeap.Reset();
-
-    Width = 0;
-    Height = 0;
-}
-
-void TextureTmp::CreateTextureResource(ID3D12Device* device, ID3D12GraphicsCommandList* CmdList, const void* InData, int Width, int Height, DXGI_FORMAT Format, int PixelByteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& OutResource, Microsoft::WRL::ComPtr<ID3D12Resource>& OutUploadHeap)
-{
-    D3D12_RESOURCE_DESC Desc = {};
-    Desc.MipLevels = 1;
-	Desc.Format = Format;
-	Desc.Width = Width;
-	Desc.Height = Height;
-	Desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	Desc.DepthOrArraySize = 1;
-	Desc.SampleDesc.Count = 1;
-    Desc.SampleDesc.Quality = 0;
-	Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-
-	CD3DX12_HEAP_PROPERTIES DefaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
-	ThrowIfFailed(device->CreateCommittedResource(
-		&DefaultHeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&Desc,
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		nullptr,
-		IID_PPV_ARGS(&OutResource)
-	));
-	OutResource->SetName(L"Texture Resource");
-	const UINT64 UploadBufferSize = GetRequiredIntermediateSize(OutResource.Get(), 0, 1);
-	CD3DX12_HEAP_PROPERTIES UploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(UploadBufferSize);
-	ThrowIfFailed(device->CreateCommittedResource(
-		&UploadHeapProps,
-		D3D12_HEAP_FLAG_NONE,
-		&BufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&OutUploadHeap)
-	));
-	OutUploadHeap->SetName(L"Texture Upload Heap");
-	D3D12_SUBRESOURCE_DATA TextureData = {};
-	TextureData.pData = InData;
-	TextureData.RowPitch = Width * PixelByteSize;
-	TextureData.SlicePitch = TextureData.RowPitch * Height;
-	UpdateSubresources(CmdList, OutResource.Get(), OutUploadHeap.Get(), 0, 0, 1, &TextureData);
-	CD3DX12_RESOURCE_BARRIER Barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		OutResource.Get(),
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
-	);
-	CmdList->ResourceBarrier(1, &Barrier);
 }

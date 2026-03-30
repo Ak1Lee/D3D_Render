@@ -35,53 +35,6 @@ struct RenderPass
     std::function<void(ID3D12GraphicsCommandList*)> Execute;
 };
 
-class TextureTmp
-{
-
-public:
-	TextureTmp(const std::string& InName) : Name(InName) {}
-    ~TextureTmp() { Release();}
-
-
-    void LoadFromFile(ID3D12GraphicsCommandList* CmdList, std::string Filename, bool isRGB = false);
-
-    void LoadHDRFromFile(ID3D12GraphicsCommandList* CmdList,std::string Filename);
-
-    void Release();
-
-	ID3D12Resource* GetResource() { return Resource.Get(); }
-
-	int GetDescriptorHeapIndex()const { return Handle.Index; }
-
-	D3D12_CPU_DESCRIPTOR_HANDLE GetCpuHandle() const { return Handle.CpuHandle; }
-
-	D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle() const { return Handle.GpuHandle; }
-
-private:
-    std::string Name;
-
-	Microsoft::WRL::ComPtr<ID3D12Resource> Resource;
-
-    Microsoft::WRL::ComPtr<ID3D12Resource> UploadHeap;
-
-    DescriptorHandle Handle;
-
-    int Width = 0;
-    int Height = 0;
-
-    DXGI_FORMAT Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-    void CreateTextureResource(ID3D12Device* device,
-        ID3D12GraphicsCommandList* CmdList,
-        const void* InData,
-        int Width, int Height,
-        DXGI_FORMAT Format,             // 格式：R8G8B8A8 或 R32G32B32A32
-        int PixelByteSize,              // 像素字节大小：4 (LDR) 或 16 (HDR)
-        Microsoft::WRL::ComPtr<ID3D12Resource>& OutResource,
-        Microsoft::WRL::ComPtr<ID3D12Resource>& OutUploadHeap);
-
-};
-
 class GraphicsPSOBuilder
 {
 public:
@@ -134,6 +87,18 @@ public:
 private:
     D3D12_GRAPHICS_PIPELINE_STATE_DESC m_Desc;
 };
+
+
+struct FrameResource
+{
+    ComPtr<ID3D12CommandAllocator> CmdAllocator;
+    ComPtr<ID3D12Resource> LightConstantBuffer;
+    ComPtr<ID3D12Resource> LightCB;
+    ComPtr<ID3D12Resource> MaterialCB;
+    UINT64 FenceValue = 0;                         
+    UINT8* pCbvDataBegin = nullptr;
+};
+
 
 class DXRender
 {
@@ -274,8 +239,6 @@ private:
 
     //RenderableItem Triangle;
 
-    //BoxMesh BoxShape;
-
 	std::vector<MeshBase*> MeshList;
 
 	MeshBase* PtrMesh = nullptr;
@@ -286,6 +249,7 @@ private:
     friend class Material;
 	friend class TextureTmp;
     friend class Texture;
+    friend class MaterialManager;
 
 
     // ShadowMap

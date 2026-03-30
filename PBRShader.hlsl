@@ -22,19 +22,19 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ÑÕÉ«
-    float g_Roughness; // ´Ö²Ú¶È
-    float g_Metallic; // ½ðÊô¶È
-    float g_AO; // »·¾³¹âÕÚ±Î
-    float g_Padding; // ´ÕÆë 16 ×Ö½Ú¶ÔÆë
+    float4 g_Albedo; // ï¿½ï¿½É«
+    float g_Roughness; // ï¿½Ö²Ú¶ï¿½
+    float g_Metallic; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    float g_AO; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±ï¿½
+    float g_Padding; // ï¿½ï¿½ï¿½ï¿½ 16 ï¿½Ö½Ú¶ï¿½ï¿½ï¿½
 };
 
-Texture2D g_ShadowMap : register(t0); // ¶ÔÓ¦ Slot 3
-Texture2D g_ShadowMask : register(t1); // ¶ÔÓ¦ Slot 3
+Texture2D g_ShadowMap : register(t0); // ï¿½ï¿½Ó¦ Slot 3
+Texture2D g_ShadowMask : register(t1); // ï¿½ï¿½Ó¦ Slot 3
 
-SamplerState g_samShadow : register(s0); // ±È½Ï²ÉÑùÆ÷ (Comparison Sampler)
-SamplerState g_Sampler : register(s2); // Linear Wrap (ÓÃÓÚ CubeMap)
-SamplerState g_ClampedSampler : register(s3); // Linear Clamp (ÓÃÓÚ LUT£¬·ÀÖ¹ºÚ±ß)
+SamplerState g_samShadow : register(s0); // ï¿½È½Ï²ï¿½ï¿½ï¿½ï¿½ï¿½ (Comparison Sampler)
+SamplerState g_Sampler : register(s2); // Linear Wrap (ï¿½ï¿½ï¿½ï¿½ CubeMap)
+SamplerState g_ClampedSampler : register(s3); // Linear Clamp (ï¿½ï¿½ï¿½ï¿½ LUTï¿½ï¿½ï¿½ï¿½Ö¹ï¿½Ú±ï¿½)
 
 
 TextureCube g_IrradianceMap : register(t10);
@@ -81,7 +81,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r * r) / 8.0; // Ö±½Ó¹âÕÕÏÂµÄkÖµ¼ÆËã
+    float k = (r * r) / 8.0; // Ö±ï¿½Ó¹ï¿½ï¿½ï¿½ï¿½Âµï¿½kÖµï¿½ï¿½ï¿½ï¿½
 
     float nom = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -104,7 +104,7 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 }
 
 // ----------------------------------------------------------------------------
-// IBL ×¨ÓÃµÄ·ÆÄù¶ûº¯Êý (¼ÓÈë´Ö²Ú¶ÈÐÞÕý)
+// IBL ×¨ï¿½ÃµÄ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½Ö²Ú¶ï¿½ï¿½ï¿½ï¿½ï¿½)
 // ----------------------------------------------------------------------------
 float3 fresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
@@ -115,7 +115,8 @@ PSInput VSMain(VertexIn In)
 {
     PSInput output;
     output.position = mul(float4(In.Position, 1.0f), gWorldViewProj);
-    output.normal = In.Normal;
+    // output.normal = In.Normal;
+    output.normal = normalize(mul(In.Normal, (float3x3)gWorld));
     output.texCoord = In.TexCoord;
     output.tangent = In.Tangent;
     output.color = In.Color;
@@ -125,7 +126,7 @@ PSInput VSMain(VertexIn In)
     float4 posW = mul(float4(In.Position, 1.0f), gWorld);
     output.worldposition = posW;
     output.PosLightSpace = mul(posW, gLightViewProj);
-    //gLightColor; // ¼òµ¥¹âÕÕµ÷½Ú
+    //gLightColor; // ï¿½òµ¥¹ï¿½ï¿½Õµï¿½ï¿½ï¿½
     return output;
 }
 
@@ -151,7 +152,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     
     float3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 ·ÀÖ¹³ýÁã
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½
     float3 specularDirect = numerator / denominator;
     
     float3 kS_Direct = F;
@@ -159,10 +160,10 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     kD_Direct *= 1.0 - metallic;
     float NdotL = max(dot(N, L), 0.0);
-    // Ö±Éä¹â½á¹û Lo
+    // Ö±ï¿½ï¿½ï¿½ï¿½ï¿½ Lo
     float3 Lo = (kD_Direct * albedo / PI + specularDirect) * gLightColor * NdotL;
-    
-    // ¼ä½Ó¹âÕÕ²¿·Ö
+    // Lo = float3(0.0, 0.0, 0.0);
+    // ï¿½ï¿½Ó¹ï¿½ï¿½Õ²ï¿½ï¿½ï¿½
     // IBL Fernle
     float3 kS_IBL = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     float3 kD_IBL = 1.0 - kS_IBL;
@@ -179,12 +180,13 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     float3 ambient = (kD_IBL * diffuseIBL + specularIBL) * ao * 0.4;
     // float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
+    // ambient = float3(0.0, 0.0, 0.0);
     
     float3 color = ambient + Lo;
     
     
-// 1. »ñÈ¡µ±Ç°ÏñËØµÄÕûÊý×ø±ê (SV_POSITION ±¾Éí¾ÍÊÇÆÁÄ»×ø±ê)
-// int3 µÄµÚÈý¸ö²ÎÊýÊÇ mipmap level£¬Í¨³£Ìî 0
+// 1. ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (SV_POSITION ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä»ï¿½ï¿½ï¿½ï¿½)
+// int3 ï¿½Äµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ mipmap levelï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ 0
     int3 screenPos = int3(input.position.xy, 0);
 
     float shadowFactor = g_ShadowMask.Load(screenPos).r;
