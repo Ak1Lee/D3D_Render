@@ -51,6 +51,13 @@ void DXRootSignature::AddRootConstant(UINT shaderRegister, UINT num32BitValues, 
 	m_rootParameters.push_back(param);
 }
 
+void DXRootSignature::AddRootConstantBufferView(UINT shaderRegister, D3D12_SHADER_VISIBILITY visibility)
+{
+	CD3DX12_ROOT_PARAMETER param;
+	param.InitAsConstantBufferView(shaderRegister);
+	m_rootParameters.push_back(param);
+}
+
 void DXRootSignature::Add32BitConstants(UINT shaderRegister, UINT numValues, UINT registerSpace, D3D12_SHADER_VISIBILITY visibility)
 {
 	// 创建一个新的参数对象
@@ -60,7 +67,6 @@ void DXRootSignature::Add32BitConstants(UINT shaderRegister, UINT numValues, UIN
 	// init helper: (num32BitValues, shaderRegister, registerSpace, visibility)
 	param.InitAsConstants(numValues, shaderRegister, registerSpace, visibility);
 
-	// 将其存入你的参数列表 (假设你有一个 member 叫 m_RootParameters)
 	m_rootParameters.push_back(param);
 }
 

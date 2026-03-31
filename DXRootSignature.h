@@ -26,6 +26,9 @@ public:
 	// 添加Root Constant
 	void AddRootConstant(UINT shaderRegister, UINT num32BitValues, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
+	// 添加Root ConstantBufferView
+	void AddRootConstantBufferView(UINT shaderRegister, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
+
 	// 参数说明：
 	// shaderRegister: 对应 HLSL 里的 register(bX)，例如 0 对应 b0
 	// numValues:      有多少个 32位数据 (1个 float 就是 1，float4 就是 4)

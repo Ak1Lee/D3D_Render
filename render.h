@@ -92,14 +92,21 @@ private:
 struct FrameResource
 {
     ComPtr<ID3D12CommandAllocator> CmdAllocator;
+    UINT64 FenceValue = 0;
 
+    //LightCB
     ComPtr<ID3D12Resource> LightConstantBuffer;
     UINT8* LightConstantBufferMappedData = nullptr;
-    ComPtr<ID3D12Resource> MaterialConstantBuffer;
-    UINT8* MaterialConstantBufferMappedData = nullptr;
 
+	//ObjectCB
+    ComPtr<ID3D12Resource> ObjectConstantBuffer;
+    UINT8* ObjectConstantBufferMappedData = nullptr;
+
+    void Init(ID3D12Device* device, UINT maxObjectCount);
 
 };
+
+
 
 
 class DXRender
@@ -174,6 +181,13 @@ public:
 	void ComputePrefilterMap();
     void InitBRDFLUT();
 	void ComputeBRDFLUT();
+
+
+    
+    int CurrentFrameResourceIndex = 0;
+    static const int FrameResourceNum = 3;
+    FrameResource FrameResources[FrameResourceNum];
+
 private:
     DXRender();
 
