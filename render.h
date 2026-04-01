@@ -16,6 +16,7 @@
 #include "Texture.h"
 #include "camera.h"
 #include <functional>
+#include <assimp/Importer.hpp>
 
 constexpr unsigned int FrameBufferCount = 2;
 inline unsigned int Width = 800;

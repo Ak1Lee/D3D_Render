@@ -15,6 +15,8 @@
 #include "imgui/backends/imgui_impl_dx12.h"
 
 
+#include "Model.h"
+
 //tex load
 // #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -190,13 +192,17 @@ void DXRender::InitDX(HWND hWnd)
         BoxPtr->SetPosition(i * 3.0f - 7.f, 0.0f, 0.0f);
         BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 		DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-
-		//DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-        // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, i);
-        BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+        // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 		BoxPtr->SetMaterialByName("Mat_Red");
         MeshList.push_back(BoxPtr);
     }
+    // test model
+    auto backpack = new Model();
+    backpack->LoadFromFile(".\\resources\\backpack.obj",
+        Device::GetInstance().GetD3DDevice(), CommandList.Get());
+    backpack->SetPosition(0.0f, 5.0f, 5.0f);
+    backpack->SetMaterialByName("Mat_White");
+    MeshList.push_back(backpack);
 
     int rows = 7;
     int cols = 7;
@@ -244,8 +250,8 @@ void DXRender::InitDX(HWND hWnd)
 
             SpherePtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 
-            DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-            SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+            // DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+            // SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 
             // 5. 绑定刚才创建的材质
             // 如果你的 Sphere 支持直接传指针：
@@ -263,9 +269,9 @@ void DXRender::InitDX(HWND hWnd)
     BoxPtr->SetPosition(0.0f, -2.0f, 0.0f);
 	BoxPtr->SetScale(10.0f, 0.5f, 10.0f);
     BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-    //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
-    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+    // DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    // PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+    // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
     BoxPtr->SetMaterialByName("Mat_White");
     MeshList.push_back(BoxPtr);
 
@@ -273,9 +279,9 @@ void DXRender::InitDX(HWND hWnd)
     BoxPtr->SetPosition(0.0f, -10.0f, -3.0f);
     BoxPtr->SetScale(0.5f, 15.f, 0.5f);
     BoxPtr->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-    //PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
-    BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+    // AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    // PanelPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), ConstantBufferViewHeap.Get(), SrvUavDescriptorSize, 12);
+    // BoxPtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
     BoxPtr->SetMaterialByName("Mat_Red");
 
 	MeshList.push_back(BoxPtr);
@@ -726,8 +732,8 @@ void DXRender::InitEnvCubeMapAndIrradianceMap()
 	SkyboxMesh = new Box();
 	SkyboxMesh->SetScale(1.0f, 1.0f, 1.0f);
     SkyboxMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
-    DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-    SkyboxMesh->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
+    // DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    // SkyboxMesh->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 
 
 
@@ -1335,7 +1341,7 @@ void DXRender::InitPasses()
                 ObjectConstants objConstants;
                 DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
                 DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
-                MeshElement->UpdateObjectConstantBuffer(objConstants);
+                // MeshElement->UpdateObjectConstantBuffer(objConstants);
                 memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
 
 
