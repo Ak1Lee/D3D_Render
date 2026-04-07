@@ -84,7 +84,7 @@ struct TextureDesc
 };
 
 
-//»ù±¾µÄsrv ×ÊÔ´
+//åŸºæœ¬çš„srv èµ„æº
 class Texture
 {
 public:
@@ -102,7 +102,7 @@ public:
 		const std::string& Filename,
 		bool IsSRGB = false, bool IsHDR = false);
 
-	// ÊÖ¶¯´´½¨
+	// æ‰‹åŠ¨åˆ›å»º
 	void Create(
 		ID3D12GraphicsCommandList* CmdList,
 		const TextureDesc& Desc,
@@ -151,6 +151,8 @@ public:
 	UINT GetArraySize() const { return ArraySize; }
 
 
+	friend class DXRender;
+
 protected:
 	void CreateSRV(ID3D12Device* Device,
 		ID3D12GraphicsCommandList* CmdList,
@@ -175,7 +177,7 @@ protected:
 	std::string Name;
 
 
-	// Views£¨Ê¹ÓÃ optional ÊµÏÖÀÁ¼ÓÔØ£©
+	// Viewsï¼ˆä½¿ç”¨ optional å®ç°æ‡’åŠ è½½ï¼‰
 	std::optional<DescriptorHandle> m_SRVHandle;
 	std::optional<DescriptorHandle> m_UAVHandle;
 	std::optional<DescriptorHandle> m_RTVHandle;

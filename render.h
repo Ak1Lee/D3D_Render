@@ -27,9 +27,9 @@ struct RenderPass
 {
     std::string Name;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> PSO;
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSig; // Èç¹û²»Í¬ Pass RootSig ²»Í¬
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSig; // ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ Pass RootSig ï¿½ï¿½Í¬
 
-    // ÊÓ¿ÚºÍ²Ã¼ô¾ØÐÎ
+    // ï¿½Ó¿ÚºÍ²Ã¼ï¿½ï¿½ï¿½ï¿½ï¿½
     D3D12_VIEWPORT Viewport;
     D3D12_RECT ScissorRect;
 
@@ -41,7 +41,6 @@ class GraphicsPSOBuilder
 public:
     GraphicsPSOBuilder(ID3D12RootSignature* rootSig)
     {
-        // 1. ÔÚÕâÀï°ÑËùÓÐÂÒÆß°ËÔãµÄÄ¬ÈÏÖµ¶¼ÌîºÃ£¡
         m_Desc = {};
         m_Desc.pRootSignature = rootSig;
         m_Desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -54,11 +53,11 @@ public:
         m_Desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
         m_Desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        // Input Layout Ä¬ÈÏÓÃ±ê×¼µÄ
+        // Input Layout Ä¬ï¿½ï¿½ï¿½Ã±ï¿½×¼ï¿½ï¿½
         m_Desc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
     }
 
-    // Á´Ê½µ÷ÓÃ·½·¨
+    // ï¿½ï¿½Ê½ï¿½ï¿½ï¿½Ã·ï¿½ï¿½ï¿½
     GraphicsPSOBuilder& SetShaders(const std::wstring& vsName, const std::wstring& psName);
 
 
@@ -69,7 +68,7 @@ public:
         return *this;
     }
 
-    // ×¨ÃÅ¸ø Shadow Pass ÓÃ
+    // ×¨ï¿½Å¸ï¿½ Shadow Pass ï¿½ï¿½
     GraphicsPSOBuilder& SetDepthOnly(DXGI_FORMAT dsvFormat)
     {
         m_Desc.NumRenderTargets = 0;
@@ -102,6 +101,10 @@ struct FrameResource
 	//ObjectCB
     ComPtr<ID3D12Resource> ObjectConstantBuffer;
     UINT8* ObjectConstantBufferMappedData = nullptr;
+
+	//MaterialCB
+	ComPtr<ID3D12Resource> MaterialConstantBuffer;
+	UINT8* MaterialConstantBufferMappedData = nullptr;
 
     void Init(ID3D12Device* device, UINT maxObjectCount);
 
@@ -316,6 +319,7 @@ private:
 	std::shared_ptr<Texture> m_HDRSkyTexture;
 	std::shared_ptr<Texture> m_PrefilterMap;
 	std::shared_ptr<Texture> m_BrdfLUTTexture;
+	std::shared_ptr<Texture> m_DefaultWhiteTexture;
 
     // SKYBOX
     Box* SkyboxMesh = nullptr;

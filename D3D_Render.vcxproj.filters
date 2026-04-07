@@ -78,9 +78,6 @@
     <ClCompile Include="imgui\backends\imgui_impl_win32.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Texture.cpp">
-      <Filter>源文件\Resource</Filter>
-    </ClCompile>
     <ClCompile Include="VendorImpl.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -88,6 +85,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Model.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

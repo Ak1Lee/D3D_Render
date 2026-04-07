@@ -30,8 +30,10 @@ public:
     const std::vector<SubMesh>& GetSubMeshes() const { return SubMeshes; }
 
 private:
-    void ProcessNode(aiNode* node, const aiScene* scene);
-    void ProcessMesh(aiMesh* mesh, const aiScene* scene);
+    void ProcessNode(aiNode* node, const aiScene* scene,
+                     ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList);
+    void ProcessMesh(aiMesh* mesh, const aiScene* scene,
+                     ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList);
 
     std::vector<SubMesh> SubMeshes;
     std::string Directory;

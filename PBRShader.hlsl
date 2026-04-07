@@ -22,25 +22,27 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ��ɫ
-    float g_Roughness; // �ֲڶ�
-    float g_Metallic; // ������
-    float g_AO; // �������ڱ�
-    float g_Padding; // ���� 16 �ֽڶ���
+    float4 g_Albedo; 
+    float g_Roughness;
+    float g_Metallic;
+    float g_AO;
+    float g_Padding;
 };
 
-Texture2D g_ShadowMap : register(t0); // ��Ӧ Slot 3
-Texture2D g_ShadowMask : register(t1); // ��Ӧ Slot 3
+Texture2D g_ShadowMap : register(t0); 
+Texture2D g_ShadowMask : register(t1);
 
-SamplerState g_samShadow : register(s0); // �Ƚϲ����� (Comparison Sampler)
-SamplerState g_Sampler : register(s2); // Linear Wrap (���� CubeMap)
-SamplerState g_ClampedSampler : register(s3); // Linear Clamp (���� LUT����ֹ�ڱ�)
+SamplerState g_samShadow : register(s0); //(Comparison Sampler)
+SamplerState g_Sampler : register(s2); // Linear Wrap (CubeMap)
+SamplerState g_ClampedSampler : register(s3); // Linear Clamp ( LUT)
 
 
 TextureCube g_IrradianceMap : register(t10);
 TextureCube g_PrefilterMap : register(t11);
 Texture2D g_BRDFLUT : register(t12);
-
+Texture2D g_AlbedoMap : register(t13);
+Texture2D g_NormalMap : register(t14);
+Texture2D g_MetallicRoughnessMap : register(t15);
 
 struct VertexIn
 {
@@ -132,7 +134,7 @@ PSInput VSMain(VertexIn In)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float3 albedo = g_Albedo;
+    float3 albedo = g_AlbedoMap.Sample(g_Sampler, input.texCoord).rgb * g_Albedo.rgb;
     float metallic = g_Metallic;
     float roughness = g_Roughness;
     float ao = g_AO;

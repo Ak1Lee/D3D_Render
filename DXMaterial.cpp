@@ -5,91 +5,91 @@
 
 
 
-void Material::InitPSO()
-{
-    // ³õÊ¼»¯¹ÜÏß×´Ì¬¶ÔÏó (PSO)
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&m_pso)));
-    
-}
+//void Material::InitPSO()
+//{
+//    // ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½ (PSO)
+//    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&m_pso)));
+//    
+//}
 
-void Material::Init()
-{
-    MaterialManager& Manager = MaterialManager::GetInstance();
-
-	Manager.AddMaterial(this);
-
-    if (bInit) return;
-    InitPSO();
-
-    // cbv³õÊ¼»¯
-    auto DstSize = DXRender::GetInstance().GetSrvUavDescriptorSize();
-	auto AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-	auto CbSize = (sizeof(MaterialConstants) + 255) & ~255; // 256×Ö½Ú¶ÔÆë
-
-	CpuCbvHandle = AllocInfo.CpuHandle;
-	GpuCbvHandle = AllocInfo.GpuHandle;
-	DescriptorIndex = AllocInfo.Index;
-    // ´´½¨³£Á¿»º³åÇø×ÊÔ´
-	CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(CbSize);
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
-        &HeapProps,
-        D3D12_HEAP_FLAG_NONE,
-        &ResourceDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&ConstantBuffer)
-    ));
-    // Ó³Éä³£Á¿»º³åÇø
-    CD3DX12_RANGE readRange(0, 0); // ²»´òËã¶ÁÈ¡Õâ¸ö×ÊÔ´£¬ËùÒÔ·¶Î§Îª0
-    ThrowIfFailed(ConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pCbvDataBegin)));
-    // ´´½¨³£Á¿»º³åÇøÊÓÍ¼ (CBV)
-    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-    cbvDesc.BufferLocation = ConstantBuffer->GetGPUVirtualAddress();
-    cbvDesc.SizeInBytes = CbSize;
-	Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&cbvDesc, CpuCbvHandle);
-
-    ConstantData.Albedo = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-    ConstantData.Roughness = 0.5f;
-    ConstantData.Metallic = 0.0f;
-    ConstantData.AO = 1.0f;
-    memcpy(pCbvDataBegin, &ConstantData, sizeof(MaterialConstants));
-
-	bInit = true;
-}
+//void Material::Init()
+//{
+//    MaterialManager& Manager = MaterialManager::GetInstance();
+//
+//	Manager.AddMaterial(this);
+//
+//    if (bInit) return;
+//    InitPSO();
+//
+//    // cbvï¿½ï¿½Ê¼ï¿½ï¿½
+//    auto DstSize = DXRender::GetInstance().GetSrvUavDescriptorSize();
+//	auto AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+//	auto CbSize = (sizeof(MaterialConstants) + 255) & ~255; // 256ï¿½Ö½Ú¶ï¿½ï¿½ï¿½
+//
+//	CpuCbvHandle = AllocInfo.CpuHandle;
+//	GpuCbvHandle = AllocInfo.GpuHandle;
+//	DescriptorIndex = AllocInfo.Index;
+//    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô´
+//	CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+//	CD3DX12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(CbSize);
+//    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
+//        &HeapProps,
+//        D3D12_HEAP_FLAG_NONE,
+//        &ResourceDesc,
+//        D3D12_RESOURCE_STATE_GENERIC_READ,
+//        nullptr,
+//        IID_PPV_ARGS(&ConstantBuffer)
+//    ));
+//    // Ó³ï¿½ä³£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+//    CD3DX12_RANGE readRange(0, 0); // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½Ô·ï¿½Î§Îª0
+//    ThrowIfFailed(ConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pCbvDataBegin)));
+//    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ (CBV)
+//    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+//    cbvDesc.BufferLocation = ConstantBuffer->GetGPUVirtualAddress();
+//    cbvDesc.SizeInBytes = CbSize;
+//	Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&cbvDesc, CpuCbvHandle);
+//
+//    ConstantData.Albedo = DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+//    ConstantData.Roughness = 0.5f;
+//    ConstantData.Metallic = 0.0f;
+//    ConstantData.AO = 1.0f;
+//    memcpy(pCbvDataBegin, &ConstantData, sizeof(MaterialConstants));
+//
+//	bInit = true;
+//}
 
 void Material::Destroy()
 {
-    if(ConstantBuffer)
-    {
-		ConstantBuffer->Unmap(0, nullptr);
-        ConstantBuffer.Reset();
-        
-	}
-    pCbvDataBegin = nullptr;
+ //   if(ConstantBuffer)
+ //   {
+	//	ConstantBuffer->Unmap(0, nullptr);
+ //       ConstantBuffer.Reset();
+ //       
+	//}
+ //   pCbvDataBegin = nullptr;
 }
-
-void Material::Bind(ID3D12GraphicsCommandList* CommandList)
-{
-    if (!pCbvDataBegin) return;
-    if(bDirty)
-    {
-        // ¸üÐÂ³£Á¿»º³åÇø
-        memcpy(pCbvDataBegin, &ConstantData, sizeof(MaterialConstants));
-        bDirty = false;
-	}
-	CommandList->SetPipelineState(m_pso.Get());
-	CommandList->SetGraphicsRootSignature(m_rootSignature.Get());
-
-    // b2 
-    CommandList->SetGraphicsRootDescriptorTable(2, GpuCbvHandle);
-	//CommandList->SetGraphicsRootConstantBufferView(2, ConstantBuffer->GetGPUVirtualAddress());
-}
+//
+//void Material::Bind(ID3D12GraphicsCommandList* CommandList)
+//{
+//    if (!pCbvDataBegin) return;
+//    if(bDirty)
+//    {
+//        // ï¿½ï¿½ï¿½Â³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+//        memcpy(pCbvDataBegin, &ConstantData, sizeof(MaterialConstants));
+//        bDirty = false;
+//	}
+//	CommandList->SetPipelineState(m_pso.Get());
+//	CommandList->SetGraphicsRootSignature(m_rootSignature.Get());
+//
+//    // b2 
+//    CommandList->SetGraphicsRootDescriptorTable(2, GpuCbvHandle);
+//	//CommandList->SetGraphicsRootConstantBufferView(2, ConstantBuffer->GetGPUVirtualAddress());
+//}
 
 
 MaterialManager::~MaterialManager()
 {
-	DestroyAllMaterial();
+	// DestroyAllMaterial();
 }
 
 Material& MaterialManager::GetOrCreateMaterial(const std::string& name)
@@ -114,8 +114,8 @@ int MaterialManager::InitAllMaterial()
 {
     for(auto& [name, material] : Materials)
     {
-        // ³õÊ¼»¯Ã¿¸ö²ÄÖÊ
-		material->Init();
+        // ï¿½ï¿½Ê¼ï¿½ï¿½Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+		// material->Init();
 
 	}
     return 0;
@@ -132,12 +132,17 @@ int MaterialManager::DestroyAllMaterial()
 
 }
 
-Material::Material(const std::string InName, Microsoft::WRL::ComPtr<ID3D12RootSignature> InRootSig, D3D12_GRAPHICS_PIPELINE_STATE_DESC PipStateDesc)
-{
-    m_name = InName;
-    m_rootSignature = InRootSig;
-    PsoDesc = PipStateDesc;
-	bInit = false;
+//Material::Material(const std::string InName, Microsoft::WRL::ComPtr<ID3D12RootSignature> InRootSig, D3D12_GRAPHICS_PIPELINE_STATE_DESC PipStateDesc)
+//{
+//    m_name = InName;
+//    m_rootSignature = InRootSig;
+//    PsoDesc = PipStateDesc;
+//	bInit = false;
+//
+//    Init();
+//}
 
-    Init();
+Material::Material(const std::string InName)
+{
+	Name = InName;
 }

@@ -10,41 +10,66 @@
 #include "DXRootSignature.h"
 #include <memory>
 #include "Common.h"
+#include "Texture.h"
 
 class Material
 {
 public:
-	Material(const std::string InName = "DefaultName", Microsoft::WRL::ComPtr<ID3D12RootSignature> InRootSig = nullptr, D3D12_GRAPHICS_PIPELINE_STATE_DESC InPipStateDesc = D3D12_GRAPHICS_PIPELINE_STATE_DESC());
-	void InitPSO();
-	void Init();
+	// Material(const std::string InName = "DefaultName", Microsoft::WRL::ComPtr<ID3D12RootSignature> InRootSig = nullptr, D3D12_GRAPHICS_PIPELINE_STATE_DESC InPipStateDesc = D3D12_GRAPHICS_PIPELINE_STATE_DESC());
+	Material(const std::string InName = "DefaultMaterial");
+	//void InitPSO();
+	//void Init();
 	void Destroy();
 	void SetConstantData(const MaterialConstants& InConstantData) {
 		ConstantData = InConstantData;
-		bDirty = true;
 	}
-	void Bind(ID3D12GraphicsCommandList* CommandList);
+	//void Bind(ID3D12GraphicsCommandList* CommandList);
 	
 
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> GetRootSignature() { return m_rootSignature; }
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> GetPSO() { return m_pso; }
-	std::string GetName() { return m_name; }
+	//Microsoft::WRL::ComPtr<ID3D12RootSignature> GetRootSignature() { return m_rootSignature; }
+	//Microsoft::WRL::ComPtr<ID3D12PipelineState> GetPSO() { return m_pso; }
+	std::string GetName() { return Name; }
+
+	void SetAlbedoTexture(std::shared_ptr<Texture> InTexture) { AlbedoTexture = InTexture; }
+	void SetNormalTexture(std::shared_ptr<Texture> InTexture) { NormalTexture = InTexture; }
+	void SetMetallicTexture(std::shared_ptr<Texture> InTexture) { MetallicTexture = InTexture; }
+
+	bool HasAlbedoTexture() const { return AlbedoTexture != nullptr; }
+	bool HasNormalTexture() const { return NormalTexture != nullptr; }
+	bool HasMetallicTexture() const { return MetallicTexture != nullptr; }
+
+	const MaterialConstants& GetConstantData() const { return ConstantData; }
+	std::shared_ptr<Texture> GetAlbedoTexture() const { return AlbedoTexture; }
+	std::shared_ptr<Texture> GetNormalTexture() const { return NormalTexture; }
+	std::shared_ptr<Texture> GetMetallicTexture() const { return MetallicTexture; }
+
 	
 private:
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSignature;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
-	std::string m_name;
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc;
-	bool bInit = false;
 
-	// pbr
+	std::string Name;
+
 	MaterialConstants ConstantData;
-	bool bDirty = true;
-	Microsoft::WRL::ComPtr<ID3D12Resource> ConstantBuffer;
-	UINT8* pCbvDataBegin = nullptr;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // ¥¥Ω® View ”√
-	D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind ”√
-	unsigned int DescriptorIndex = 0;
+	//texture
+	std::shared_ptr<Texture> AlbedoTexture;
+	std::shared_ptr<Texture> NormalTexture;
+	std::shared_ptr<Texture> MetallicTexture;
+
+
+
+	
+	// old method
+	//Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSignature;
+	//Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
+	//D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc;
+	//bool bInit = false;
+	//bool bDirty = true;
+	//Microsoft::WRL::ComPtr<ID3D12Resource> ConstantBuffer;
+	//UINT8* pCbvDataBegin = nullptr;
+
+	//D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // ÔøΩÔøΩÔøΩÔøΩ View ÔøΩÔøΩ
+	//D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind ÔøΩÔøΩ
+	//unsigned int DescriptorIndex = 0;
 };
 
 class MaterialManager
@@ -62,8 +87,8 @@ class MaterialManager
 	Material& GetOrCreateMaterial(const std::string& name);
 	Material* GetMaterialByName(const std::string& name);
 
-	void AddMaterial(Material* InMaterial) {
-		Materials[InMaterial->GetName()] = std::shared_ptr<Material>(InMaterial);
+	void AddMaterial(std::shared_ptr<Material> InMaterial) {
+		Materials[InMaterial->GetName()] = InMaterial;
 	}
 
 	int InitAllMaterial();

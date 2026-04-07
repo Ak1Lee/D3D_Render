@@ -104,7 +104,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = 1; // ImGui 只需要一个位置存字体贴图
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // 必须是 Shader 可见的
-    Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&ImguiSrvHeap));
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&ImguiSrvHeap)));
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -174,8 +174,7 @@ void DXRender::InitDX(HWND hWnd)
 
     CreateConstantBufferView();
 
-    // 用Materila替代PSO
-    // InitPSO();
+
     // shader应该也归属于material
     InitMaterial();
 
@@ -196,12 +195,25 @@ void DXRender::InitDX(HWND hWnd)
 		BoxPtr->SetMaterialByName("Mat_Red");
         MeshList.push_back(BoxPtr);
     }
+    // 默认 1x1 白色贴图
+    {
+        uint32_t whitePixel = 0xFFFFFFFF;
+        m_DefaultWhiteTexture = std::make_shared<Texture>("DefaultWhite");
+        m_DefaultWhiteTexture->Width = 1;
+        m_DefaultWhiteTexture->Height = 1;
+        m_DefaultWhiteTexture->Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        m_DefaultWhiteTexture->CreateResourceHeap(
+            Device::GetInstance().GetD3DDevice(), CommandList.Get(), &whitePixel, 4);
+        m_DefaultWhiteTexture->ViewFlags = TextureViewFlags::SRV;
+        m_DefaultWhiteTexture->CreateSRV(Device::GetInstance().GetD3DDevice());
+    }
+
     // test model
     auto backpack = new Model();
-    backpack->LoadFromFile(".\\resources\\backpack.obj",
+    backpack->LoadFromFile(".\\resources\\backpack\\backpack.obj",
         Device::GetInstance().GetD3DDevice(), CommandList.Get());
     backpack->SetPosition(0.0f, 5.0f, 5.0f);
-    backpack->SetMaterialByName("Mat_White");
+    backpack->SetMaterialByName("Scene_-_Root");
     MeshList.push_back(backpack);
 
     int rows = 7;
@@ -223,18 +235,12 @@ void DXRender::InitDX(HWND hWnd)
             // 给它起个唯一的名字，比如 "Mat_Test_0_0", "Mat_Test_0_1"
             std::string matName = "Mat_Test_" + std::to_string(x) + "_" + std::to_string(y);
 
-            // 使用你现有的构造函数
-            Material* tempMat = new Material(matName, RootSignature, TempPsoDesc);
-
-            // 2. 设置这个材质特有的参数
-            // 【重要】Albedo 设为纯红色 (1.0, 0.0, 0.0)
-            // 这样你可以观察：非金属(下层)反白光，金属(上层)反红光
+            auto tempMat = std::make_shared<Material>(matName);
             tempMat->SetConstantData({
-                {1.0f, 0.0f, 0.0f, 1.0f}, // Albedo: 纯红
-                roughness,                // 当前循环的粗糙度
-                metallic,                 // 当前循环的金属度
-                1.0f, 0.0f                // AO
+                {1.0f, 0.0f, 0.0f, 1.0f},
+                roughness, metallic, 1.0f, 0.0f
                 });
+            MaterialManager::GetInstance().AddMaterial(tempMat);
 
             // 3. 如果你的 MaterialManager 需要注册，记得注册进去
             // MaterialManager::GetInstance().AddMaterial(tempMat); 
@@ -447,23 +453,23 @@ void DXRender::CreateConstantBufferView()
 
 
 	// Material Constant Buffer
-    const UINT MaterialConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
-    CD3DX12_HEAP_PROPERTIES MatHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	CD3DX12_RESOURCE_DESC MatBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MaterialConstantBufferSize);
-	ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&MatHeapProps, D3D12_HEAP_FLAG_NONE, &MatBufferDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&MaterialConstantBuffer)));
-    CD3DX12_RANGE MatReadRange(0, 0);
-    ThrowIfFailed(MaterialConstantBuffer->Map(0, &MatReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData)));
+ //   const UINT MaterialConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
+ //   CD3DX12_HEAP_PROPERTIES MatHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	//CD3DX12_RESOURCE_DESC MatBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MaterialConstantBufferSize);
+	//ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&MatHeapProps, D3D12_HEAP_FLAG_NONE, &MatBufferDesc,
+	//	D3D12_RESOURCE_STATE_GENERIC_READ,
+	//	nullptr,
+	//	IID_PPV_ARGS(&MaterialConstantBuffer)));
+ //   CD3DX12_RANGE MatReadRange(0, 0);
+ //   ThrowIfFailed(MaterialConstantBuffer->Map(0, &MatReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData)));
 
-	auto MaterialCvbHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-	MaterialCbvCpuHandle = MaterialCvbHandle.CpuHandle;
-	MaterialCbvGpuHandle = MaterialCvbHandle.GpuHandle;
-	D3D12_CONSTANT_BUFFER_VIEW_DESC MaterialCbvDesc = {};
-	MaterialCbvDesc.BufferLocation = MaterialConstantBuffer->GetGPUVirtualAddress();
-	MaterialCbvDesc.SizeInBytes = MaterialConstantBufferSize;
-    Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&MaterialCbvDesc, MaterialCbvCpuHandle);
+	//auto MaterialCvbHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+	//MaterialCbvCpuHandle = MaterialCvbHandle.CpuHandle;
+	//MaterialCbvGpuHandle = MaterialCvbHandle.GpuHandle;
+	//D3D12_CONSTANT_BUFFER_VIEW_DESC MaterialCbvDesc = {};
+	//MaterialCbvDesc.BufferLocation = MaterialConstantBuffer->GetGPUVirtualAddress();
+	//MaterialCbvDesc.SizeInBytes = MaterialConstantBufferSize;
+ //   Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&MaterialCbvDesc, MaterialCbvCpuHandle);
 
 
 }
@@ -477,7 +483,7 @@ void DXRender::InitRootSignature()
     // Index 1: b1 Light CB (Root CBV)
     rootSigBuilder.AddRootConstantBufferView(1);
     // Index 2: b2 Material CB (Descriptor Table)
-    rootSigBuilder.AddCBVDescriptorTable(2, D3D12_SHADER_VISIBILITY_ALL);
+    rootSigBuilder.AddRootConstantBufferView(2);
     
 	//t0 shader resource view for texture
     //slot 3
@@ -494,6 +500,15 @@ void DXRender::InitRootSignature()
     rootSigBuilder.AddSRVDescriptorTable(11, 1, D3D12_SHADER_VISIBILITY_PIXEL);
     // Index 7: t12 (BRDF LUT)
     rootSigBuilder.AddSRVDescriptorTable(12, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+    // pbr tetxure
+	// --- PBR 贴图表 (Index 8) abedo ---
+    rootSigBuilder.AddSRVDescriptorTable(13, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // --- PBR 贴图表 (Index 9) normal---
+    rootSigBuilder.AddSRVDescriptorTable(14, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // --- PBR 贴图表 (Index 10) metallic---
+    rootSigBuilder.AddSRVDescriptorTable(15, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -933,29 +948,31 @@ void DXRender::InitMaterial()
     TestPsoDesc.SampleDesc.Count = 1;
 	TempPsoDesc = TestPsoDesc;
 
-	Material* TestMaterial = new Material("TestMaterial", RootSignature, TestPsoDesc);
+	Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&TestPsoDesc, IID_PPV_ARGS(&PipelineState));
 
-    Material* MatGold = new Material("Mat_Gold", RootSignature, TestPsoDesc);
+	auto TestMaterial = std::make_shared<Material>("TestMaterial");
+	MaterialManager::GetInstance().AddMaterial(TestMaterial);
+
+    auto MatGold = std::make_shared<Material>("Mat_Gold");
     MatGold->SetConstantData({
-        {1.0f, 0.76f, 0.33f, 1.0f}, // Albedo (金黄色)
-        0.2f,                       // Roughness (光滑)
-        1.0f,                       // Metallic (金属)
-        1.0f, 0.0f                  // AO, Padding
+        {1.0f, 0.76f, 0.33f, 1.0f},
+        0.2f, 1.0f, 1.0f, 0.0f
         });
-    Material* MatRedPlastic = new Material("Mat_Red", RootSignature, TestPsoDesc);
+    MaterialManager::GetInstance().AddMaterial(MatGold);
+
+    auto MatRedPlastic = std::make_shared<Material>("Mat_Red");
     MatRedPlastic->SetConstantData({
-        {1.0f, 0.1f, 0.1f, 1.0f},   // Albedo (红)
-        0.5f,                       // Roughness (中等粗糙)
-        0.0f,                       // Metallic (非金属)
-        1.0f, 0.0f
+        {1.0f, 0.1f, 0.1f, 1.0f},
+        0.5f, 0.0f, 1.0f, 0.0f
         });
-    Material* MatWhitePlastic = new Material("Mat_White", RootSignature, TestPsoDesc);
+    MaterialManager::GetInstance().AddMaterial(MatRedPlastic);
+
+    auto MatWhitePlastic = std::make_shared<Material>("Mat_White");
     MatWhitePlastic->SetConstantData({
-        {0.8f, 0.8f, 0.8f, 1.0f},   // Albedo (红)
-        0.5f,                       // Roughness (中等粗糙)
-        0.0f,                       // Metallic (非金属)
-        1.0f, 0.0f
+        {0.8f, 0.8f, 0.8f, 1.0f},
+        0.5f, 0.0f, 1.0f, 0.0f
         });
+    MaterialManager::GetInstance().AddMaterial(MatWhitePlastic);
 
 
 }
@@ -1235,11 +1252,6 @@ void DXRender::InitPasses()
             DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
 
             memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-
-
-            // MeshElement->UpdateObjectConstantBuffer(objConstants);
-            // 绑定
-            // CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
 			CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
 
 
@@ -1263,6 +1275,7 @@ void DXRender::InitPasses()
 	};
 
     MainPass.Name = "Main Pass";
+	MainPass.PSO = PipelineState; // 之前创建的主渲染 PSO
     MainPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
     {
 
@@ -1276,10 +1289,9 @@ void DXRender::InitPasses()
         );
         CommandList->ResourceBarrier(1, &Barrier_P2RT);
 
-        // todo 清理这些东西
         D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
         CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
-        // 添加清除渲染目标
+
         const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
         CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
 		auto dsvhandle = m_SceneDepth->GetDSV();
@@ -1298,7 +1310,7 @@ void DXRender::InitPasses()
         CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
         // 设置主渲染 PSO
-        //CommandList->SetPipelineState(TestMaterial.GetPSO().Get());
+        CommandList->SetPipelineState(PipelineState.Get());
 
         //Light Constants
         auto MainCameraPos = MainCamera.GetPosition();
@@ -1312,12 +1324,6 @@ void DXRender::InitPasses()
         // CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
         CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
 
-        // Material Constants
-        if (MaterialConstantBufferMappedData)
-        {
-            memcpy(MaterialConstantBufferMappedData, &MaterialConstantInstance, sizeof(MaterialConstants));
-        }
-        CommandList->SetGraphicsRootDescriptorTable(2, MaterialCbvGpuHandle);
 
 		//// shadow map SRV
   //      CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle);
@@ -1329,7 +1335,7 @@ void DXRender::InitPasses()
 		m_PrefilterMap->BindSRV_Graphics(CommandList, 6);
 		m_BrdfLUTTexture->BindSRV_Graphics(CommandList, 7);
         const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
-
+        const UINT MatConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
         for (int i = 0; i < MeshList.size(); ++i)
         {
 
@@ -1343,21 +1349,45 @@ void DXRender::InitPasses()
                 DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
                 // MeshElement->UpdateObjectConstantBuffer(objConstants);
                 memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-
+                // 绑定 CBV
+                // CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
+                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
 
                 auto MaterialName = MeshElement->GetMaterialName();
                 Material* MaterialPtr = MaterialManager::GetInstance().GetMaterialByName(MaterialName);
+
+                MaterialConstants matConstants;
                 if (MaterialPtr)
                 {
-                    MaterialPtr->Bind(CommandList);
+                    //MaterialPtr->Bind(CommandList);
                     //std::cout << "Binding Material: " << MaterialName << std::endl;
+					memcpy(CurrFrameResource.MaterialConstantBufferMappedData + i * MatConstantBufferSize, &MaterialPtr->GetConstantData(), sizeof(matConstants));
+					CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.MaterialConstantBuffer->GetGPUVirtualAddress() + i * MatConstantBufferSize);
+                    if (MaterialPtr->HasAlbedoTexture())
+                    {
+						MaterialPtr->GetAlbedoTexture()->BindSRV_Graphics(CommandList, 8);
+                    }
+                    else
+                    {
+                        m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
+                    }
+                    if (MaterialPtr->HasNormalTexture())
+                    {
+                        MaterialPtr->GetNormalTexture()->BindSRV_Graphics(CommandList, 9);
+                    }
+                    if (MaterialPtr->HasMetallicTexture())
+                    {
+						MaterialPtr->GetMetallicTexture()->BindSRV_Graphics(CommandList, 10);
+                    }
 
+                }
+                else
+                {
+                    m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
                 }
             }
 
-            // 绑定 CBV
-            // CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
-			CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+           
             CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             auto VertexBufferView = MeshElement->GetVertexBufferView();
             CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
@@ -1368,6 +1398,7 @@ void DXRender::InitPasses()
         }
         // MainPass 不执行，等 ImGui 渲染完后统一执行
 	};
+    
     SkyPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
 
@@ -1756,6 +1787,21 @@ void FrameResource::Init(ID3D12Device* device, UINT maxObjectCount)
         nullptr,
         IID_PPV_ARGS(&ObjectConstantBuffer)));
     ObjectConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&ObjectConstantBufferMappedData));
+
+
+	// Material Constant Buffer
+	const UINT MaterialConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
+    const UINT MaxMaterialNum = 128;
+
+    CD3DX12_HEAP_PROPERTIES MatHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC MatBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MaterialConstantBufferSize * MaxMaterialNum);
+    ThrowIfFailed(device->CreateCommittedResource(&MatHeapProps, D3D12_HEAP_FLAG_NONE, &MatBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&MaterialConstantBuffer)));
+    MaterialConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData));
+
+
 
 
 }

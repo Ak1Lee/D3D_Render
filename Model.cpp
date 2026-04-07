@@ -1,4 +1,5 @@
 #include "Model.h"
+#include "DXMaterial.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -13,8 +14,7 @@ bool Model::LoadFromFile(const std::string& filepath,
     const aiScene* scene = importer.ReadFile(filepath,
         aiProcess_Triangulate |
         aiProcess_GenNormals |
-        aiProcess_CalcTangentSpace |
-        aiProcess_FlipUVs
+        aiProcess_CalcTangentSpace
     );
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -31,28 +31,30 @@ bool Model::LoadFromFile(const std::string& filepath,
     IndiceList32.clear();
     SubMeshes.clear();
 
-    ProcessNode(scene->mRootNode, scene);
+    ProcessNode(scene->mRootNode, scene, Device, CommandList);
 
     InitVertexBufferAndIndexBuffer(Device, CommandList);
 
     return true;
 }
 
-void Model::ProcessNode(aiNode* node, const aiScene* scene)
+void Model::ProcessNode(aiNode* node, const aiScene* scene,
+                        ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList)
 {
     for (unsigned int i = 0; i < node->mNumMeshes; ++i)
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-        ProcessMesh(mesh, scene);
+        ProcessMesh(mesh, scene, Device, CommandList);
     }
 
     for (unsigned int i = 0; i < node->mNumChildren; ++i)
     {
-        ProcessNode(node->mChildren[i], scene);
+        ProcessNode(node->mChildren[i], scene, Device, CommandList);
     }
 }
 
-void Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
+void Model::ProcessMesh(aiMesh* mesh, const aiScene* scene,
+                        ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList)
 {
     SubMesh sub;
     sub.StartIndexLocation = static_cast<UINT>(IndiceList32.size());
@@ -124,10 +126,49 @@ void Model::ProcessMesh(aiMesh* mesh, const aiScene* scene)
 
     if (mesh->mMaterialIndex < scene->mNumMaterials)
     {
-        aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
+        aiMaterial* aiMat = scene->mMaterials[mesh->mMaterialIndex];
         aiString name;
-        mat->Get(AI_MATKEY_NAME, name);
+        aiMat->Get(AI_MATKEY_NAME, name);
         sub.MaterialName = name.C_Str();
+
+        if (!MaterialManager::GetInstance().GetMaterialByName(sub.MaterialName))
+        {
+            auto mat = std::make_shared<Material>(sub.MaterialName);
+
+            aiString texPath;
+            // Albedo
+            if (aiMat->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS)
+            {
+                std::string fullPath = Directory + texPath.C_Str();
+                auto tex = std::make_shared<Texture>(sub.MaterialName + "_Albedo");
+                tex->LoadFromFile(Device, CommandList, fullPath, true);
+                if (tex->GetResource())
+                    mat->SetAlbedoTexture(tex);
+            }
+            // Normal
+            aiString normalPath;
+            if (aiMat->GetTexture(aiTextureType_NORMALS, 0, &normalPath) == AI_SUCCESS ||
+                aiMat->GetTexture(aiTextureType_HEIGHT, 0, &normalPath) == AI_SUCCESS)
+            {
+                std::string fullPath = Directory + normalPath.C_Str();
+                auto tex = std::make_shared<Texture>(sub.MaterialName + "_Normal");
+                tex->LoadFromFile(Device, CommandList, fullPath);
+                if (tex->GetResource())
+                    mat->SetNormalTexture(tex);
+            }
+            // Metallic / Specular
+            if (aiMat->GetTexture(aiTextureType_SPECULAR, 0, &texPath) == AI_SUCCESS ||
+                aiMat->GetTexture(aiTextureType_METALNESS, 0, &texPath) == AI_SUCCESS)
+            {
+                std::string fullPath = Directory + texPath.C_Str();
+                auto tex = std::make_shared<Texture>(sub.MaterialName + "_Metallic");
+                tex->LoadFromFile(Device, CommandList, fullPath);
+                if (tex->GetResource())
+                    mat->SetMetallicTexture(tex);
+            }
+
+            MaterialManager::GetInstance().AddMaterial(mat);
+        }
     }
 
     SubMeshes.push_back(sub);
