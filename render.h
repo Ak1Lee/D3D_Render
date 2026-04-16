@@ -89,10 +89,25 @@ private:
 };
 
 
+// Pass 索引：和 Draw 里的提交顺序一致
+enum EPassIndex : int
+{
+    PASS_ZPRE = 0,
+    PASS_SHADOW = 1,
+    PASS_SHADOWMASK = 2,
+    PASS_MAIN = 3,
+    PASS_SKY = 4,
+    PASS_COUNT = 5
+};
+
 struct FrameResource
 {
     ComPtr<ID3D12CommandAllocator> CmdAllocator;
     UINT64 FenceValue = 0;
+
+    // 多线程录制用：每个 Pass 独立的 Allocator + CmdList
+    ComPtr<ID3D12CommandAllocator> PassCmdAllocators[PASS_COUNT];
+    ComPtr<ID3D12GraphicsCommandList> PassCmdLists[PASS_COUNT];
 
     //LightCB
     ComPtr<ID3D12Resource> LightConstantBuffer;
@@ -296,6 +311,9 @@ private:
     RenderPass ShadowMaskPass;
 	RenderPass ZPrePass;
     RenderPass SkyPass;
+
+    bool bEnableMultiThreadRecord = false;
+    float m_LastRecordTimeMs = 0.0f;
 
 
 

@@ -162,10 +162,10 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     kD_Direct *= 1.0 - metallic;
     float NdotL = max(dot(N, L), 0.0);
-    // ֱ����� Lo
+    // Lo
     float3 Lo = (kD_Direct * albedo / PI + specularDirect) * gLightColor * NdotL;
     // Lo = float3(0.0, 0.0, 0.0);
-    // ��ӹ��ղ���
+
     // IBL Fernle
     float3 kS_IBL = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
     float3 kD_IBL = 1.0 - kS_IBL;
@@ -180,15 +180,14 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 specularIBL = prefilteredColor * (kS_IBL * brdf.x + brdf.y);
     
     
-    float3 ambient = (kD_IBL * diffuseIBL + specularIBL) * ao * 0.4;
+    float3 ambient = (kD_IBL * diffuseIBL + specularIBL) * ao;
+    // float3 ambient = (specularIBL) * ao;
     // float3 ambient = float3(0.03, 0.03, 0.03) * albedo;
     // ambient = float3(0.0, 0.0, 0.0);
     
     float3 color = ambient + Lo;
     
     
-// 1. ��ȡ��ǰ���ص��������� (SV_POSITION ����������Ļ����)
-// int3 �ĵ����������� mipmap level��ͨ���� 0
     int3 screenPos = int3(input.position.xy, 0);
 
     float shadowFactor = g_ShadowMask.Load(screenPos).r;

@@ -78,7 +78,7 @@ void FindBlocker(float2 uv, float zReceiver, float SearchRadius, out float avgBl
         float2 sampleUV = uv + offset;
         float zSample = g_ShadowMap.Sample(g_samShadow, sampleUV).r;
         
-            if (zSample < zReceiver + 0.00)
+            if (zSample < zReceiver - 0.001)
         {
             avgBlockerDepth += zSample;
             numBlockers+=1.0;
@@ -144,6 +144,7 @@ float PCSS(float4 posLightSpace, out float3 debugMessage)
     for(int i = 0; i < 16; ++i)
     {
         float2 offset = mul(RotationMatrix, poissonDisk[i]) * PenumbraSize;
+        // float2 offset = poissonDisk[i] * PenumbraSize;
         float2 sampleUV = uv + offset;
         float zSample = g_ShadowMap.Sample(g_samShadow, sampleUV).r;
 

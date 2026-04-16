@@ -2,6 +2,9 @@
 
 
 #include <iostream>
+#include <future>
+#include <array>
+#include <chrono>
 #include <tchar.h>
 #include "MathHelper.h"
 #include <DirectXColors.h>
@@ -231,7 +234,7 @@ void DXRender::InitDX(HWND hWnd)
             // Clamp 到 0.05 是为了防止除0错误导致亮点闪烁
             float roughness = (std::max)((float)x / (float)(cols - 1), 0.05f);
 
-            // 1. 【核心修改】动态创建一个独一无二的材质
+            //动态创建一个材质
             // 给它起个唯一的名字，比如 "Mat_Test_0_0", "Mat_Test_0_1"
             std::string matName = "Mat_Test_" + std::to_string(x) + "_" + std::to_string(y);
 
@@ -242,9 +245,6 @@ void DXRender::InitDX(HWND hWnd)
                 });
             MaterialManager::GetInstance().AddMaterial(tempMat);
 
-            // 3. 如果你的 MaterialManager 需要注册，记得注册进去
-            // MaterialManager::GetInstance().AddMaterial(tempMat); 
-            // 假设你目前是自己管理的，确保不要内存泄漏即可
 
             // 4. 创建球体
             auto SpherePtr = new Sphere();
@@ -1006,11 +1006,56 @@ void DXRender::Draw()
 
 
 	Material& TestMaterial = MaterialManager::GetInstance().GetOrCreateMaterial("TestMaterial");
-    ZPrePass.Execute(CommandList.Get());
-	ShadowPass.Execute(CommandList.Get());
-    ShadowMaskPass.Execute(CommandList.Get());
-    MainPass.Execute(CommandList.Get());
-	SkyPass.Execute(CommandList.Get());
+
+    // Pass 执行函数表（顺序与 EPassIndex 对应）
+    std::function<void(ID3D12GraphicsCommandList*)> passExecs[PASS_COUNT] = {
+        ZPrePass.Execute,
+        ShadowPass.Execute,
+        ShadowMaskPass.Execute,
+        MainPass.Execute,
+        SkyPass.Execute,
+    };
+
+    auto recordStart = std::chrono::high_resolution_clock::now();
+
+    if (bEnableMultiThreadRecord)
+    {
+        // 多线程录制：每个 Pass 在自己的线程里 Reset/Execute/Close
+        std::future<ID3D12GraphicsCommandList*> futures[PASS_COUNT];
+        for (int i = 0; i < PASS_COUNT; ++i)
+        {
+            futures[i] = std::async(std::launch::async,
+                [i, &fr, &passExecs]() -> ID3D12GraphicsCommandList*
+                {
+                    auto* alloc = fr.PassCmdAllocators[i].Get();
+                    auto* cl = fr.PassCmdLists[i].Get();
+                    alloc->Reset();
+                    cl->Reset(alloc, nullptr);
+                    passExecs[i](cl);
+                    cl->Close();
+                    return cl;
+                });
+        }
+
+        // 按顺序收集并提交
+        ID3D12CommandList* submitList[PASS_COUNT];
+        for (int i = 0; i < PASS_COUNT; ++i)
+        {
+            submitList[i] = futures[i].get();
+        }
+        CommandQueue->ExecuteCommandLists(PASS_COUNT, submitList);
+    }
+    else
+    {
+        // 单线程路径：全部录到主 CmdList
+        for (int i = 0; i < PASS_COUNT; ++i)
+        {
+            passExecs[i](CommandList.Get());
+        }
+    }
+
+    auto recordEnd = std::chrono::high_resolution_clock::now();
+    m_LastRecordTimeMs = std::chrono::duration<float, std::milli>(recordEnd - recordStart).count();
 
     // --- Start ImGui Frame ---
     ImGui_ImplDX12_NewFrame();
@@ -1048,10 +1093,21 @@ void DXRender::Draw()
 		// light size for PCSS
         ImGui::SliderFloat("Light Size (PCSS)", &LightConstantInstance.LightSize, 0.0f, 5.0f);
 
+        ImGui::Checkbox("Multi-Thread Recording", &bEnableMultiThreadRecord);
+        ImGui::Text("Record Time: %.3f ms (%s)",
+            m_LastRecordTimeMs,
+            bEnableMultiThreadRecord ? "MT" : "ST");
+
         ImGui::End();
     }
     ImGui::Render();
     
+    // ImGui 渲染到当前 RT（MT 模式下主 CL 还没绑 RTV，这里显式绑一次）
+    {
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
+        rtvHandle.ptr += CurrentFrameIdx * RtvDescriptorSize;
+        CommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    }
     // 切换到 ImGui 的 descriptor heap 并渲染
     ID3D12DescriptorHeap* imguiHeaps[] = { ImguiSrvHeap.Get()};
     CommandList->SetDescriptorHeaps(1, imguiHeaps);
@@ -1761,6 +1817,19 @@ GraphicsPSOBuilder& GraphicsPSOBuilder::SetShaders(const std::wstring& vsName, c
 void FrameResource::Init(ID3D12Device* device, UINT maxObjectCount)
 {
 	device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CmdAllocator));
+
+    // 每个 Pass 一套独立的 Allocator + CmdList（多线程录制用）
+    for (int i = 0; i < PASS_COUNT; ++i)
+    {
+        ThrowIfFailed(device->CreateCommandAllocator(
+            D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&PassCmdAllocators[i])));
+        ThrowIfFailed(device->CreateCommandList(
+            0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+            PassCmdAllocators[i].Get(), nullptr,
+            IID_PPV_ARGS(&PassCmdLists[i])));
+        // 创建出来是 open 状态，先 Close 等待 Draw 里再 Reset
+        PassCmdLists[i]->Close();
+    }
 
     // Light Constant Buffer
     const UINT LightConstantBufferSize = (sizeof(LightConstants) + 255) & ~255;
