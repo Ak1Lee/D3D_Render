@@ -110,7 +110,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
             {
                 sourceMip = 1.0 + g_Roughness * 2.0;
             }
-            float3 envColor = g_EnvironmentMap.SampleLevel(g_Sampler, L, 0).rgb;
+            float3 envColor = g_EnvironmentMap.SampleLevel(g_Sampler, L, sourceMip).rgb;
             float maxBrightness = 60.0f;
             envColor = min(envColor, maxBrightness);
             prefilteredColor += envColor * NdotL;

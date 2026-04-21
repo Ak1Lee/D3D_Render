@@ -1262,7 +1262,6 @@ void DXRender::InitPasses()
         );
         float dot = fabsf(DirectX::XMVectorGetX(DirectX::XMVector3Dot(forward, up)));
 
-        // 如果太接近 (比如 > 0.99)，说明视线几乎垂直于地面
         if (dot > 0.99f)
         {
             // 这种情况下，强制把 Z 轴当作 Up 向量
@@ -1736,7 +1735,7 @@ void DXRender::InitSkyPassPSO()
     psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthEnable = TRUE;  // 临时禁用深度测试进行调试
+    psoDesc.DepthStencilState.DepthEnable = TRUE;
     psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
     psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;

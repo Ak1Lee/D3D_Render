@@ -81,7 +81,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     float3 up = float3(0.0, 1.0, 0.0);
     float3 right = normalize(cross(up, N));
     if (length(cross(up, N)) < 0.01)
-    { // 处理万向节死锁情况
+    { // N 和 up 平行时叉积为零
         up = float3(1.0, 0.0, 0.0); 
         right = normalize(cross(up, N));
     }
