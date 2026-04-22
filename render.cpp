@@ -16,7 +16,7 @@
 #include "imgui/imgui.h"
 #include "imgui/backends/imgui_impl_win32.h"
 #include "imgui/backends/imgui_impl_dx12.h"
-
+#include "EditorUI.h"
 
 #include "Model.h"
 
@@ -70,7 +70,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     HWND hwnd = CreateWindow(
         L"MyWindowClass", L"My DX12 App",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-        800, 600, nullptr, nullptr, hInstance, this);
+        Width, Height, nullptr, nullptr, hInstance, this);
 
     ShowWindow(hwnd, nCmdShow);
 
@@ -127,6 +127,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return;
     }
 
+    m_UI = new EditorUI(this);
 
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
@@ -1063,43 +1064,11 @@ void DXRender::Draw()
     ImGui::NewFrame();
 
     // --- Build UI ---
+    if (m_UI)
     {
-        ImGui::Begin("Debug Info");
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-            1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        // You can add controls here later
-        // ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
-
-        // camera
-		auto MainCameraPos = MainCamera.GetPosition();
-        float MainCameraPosFloat3[3] = { MainCameraPos.x, MainCameraPos.y, MainCameraPos.z };
-        if (ImGui::DragFloat3("Camera Position", MainCameraPosFloat3, 0.1f))
-        {
-			MainCamera.SetPosition(MainCameraPosFloat3[0], MainCameraPosFloat3[1], MainCameraPosFloat3[2]);
-        }
-
-		// light dir
-		auto LightDir = LightConstantInstance.LightDirection;
-		float LightDirFloat3[3] = { LightDir.x, LightDir.y, LightDir.z };
-        if (ImGui::DragFloat3("Light Dir", LightDirFloat3, 0.02f))
-        {
-			LightConstantInstance.LightDirection = { LightDirFloat3[0], LightDirFloat3[1], LightDirFloat3[2] };
-        }
-		float Roughness = MaterialConstantInstance.Roughness;
-        if (ImGui::DragFloat("Roughness", &Roughness, 0.02f, 0.05f, 1.0f))
-        {
-			MaterialConstantInstance.Roughness = Roughness;
-        }
-		// light size for PCSS
-        ImGui::SliderFloat("Light Size (PCSS)", &LightConstantInstance.LightSize, 0.0f, 5.0f);
-
-        ImGui::Checkbox("Multi-Thread Recording", &bEnableMultiThreadRecord);
-        ImGui::Text("Record Time: %.3f ms (%s)",
-            m_LastRecordTimeMs,
-            bEnableMultiThreadRecord ? "MT" : "ST");
-
-        ImGui::End();
+        m_UI->Draw();
     }
+
     ImGui::Render();
     
     // ImGui 渲染到当前 RT（MT 模式下主 CL 还没绑 RTV，这里显式绑一次）
@@ -1162,9 +1131,11 @@ DXRender::~DXRender()
     }
     MaterialManager& Manager = MaterialManager::GetInstance();
  //   for (auto& pair : Manager.Materials)
- //   {
- //       
-	//}
+    if (m_UI)
+    {
+        delete m_UI;
+        m_UI = nullptr;
+    }
 }
 
 void DXRender::InitShadowMap()
@@ -1298,6 +1269,7 @@ void DXRender::InitPasses()
         {
 
             auto MeshElement = MeshList[i];
+            if (!MeshElement->IsVisible()) continue;
             // 计算 MVP = World * LightView * LightProj
             // 更新常量缓冲区
             auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
@@ -1395,6 +1367,7 @@ void DXRender::InitPasses()
         {
 
             auto MeshElement = MeshList[i];
+            if (!MeshElement->IsVisible()) continue;
             {
                 // 更新常量缓冲区
                 auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
@@ -1556,6 +1529,7 @@ void DXRender::InitPasses()
             {
 
                 auto MeshElement = MeshList[i];
+                if (!MeshElement->IsVisible()) continue;
                 {
                     // 更新常量缓冲区
                     auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
@@ -1614,6 +1588,7 @@ void DXRender::InitPasses()
             {
 
                 auto MeshElement = MeshList[i];
+				if (!MeshElement->IsVisible()) continue;
 
                 // 更新常量缓冲区
                 auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());

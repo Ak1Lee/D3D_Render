@@ -19,8 +19,8 @@
 #include <assimp/Importer.hpp>
 
 constexpr unsigned int FrameBufferCount = 2;
-inline unsigned int Width = 800;
-inline unsigned int Height = 600;
+inline unsigned int Width = 1920;
+inline unsigned int Height = 1080;
 
 
 struct RenderPass
@@ -207,6 +207,14 @@ public:
     static const int FrameResourceNum = 3;
     FrameResource FrameResources[FrameResourceNum];
 
+    // Getters for UI
+    LightConstants& GetLightConstants() { return LightConstantInstance; }
+    MaterialConstants& GetMaterialConstants() { return MaterialConstantInstance; }
+    bool& GetMultiThreadRecordingFlag() { return bEnableMultiThreadRecord; }
+    float GetLastRecordTimeMs() const { return m_LastRecordTimeMs; }
+    const std::vector<MeshBase*>& GetMeshList() const { return MeshList; }
+
+
 private:
     DXRender();
 
@@ -344,5 +352,7 @@ private:
 
     // temp use
     D3D12_GRAPHICS_PIPELINE_STATE_DESC TempPsoDesc;
+
+    class EditorUI* m_UI = nullptr;
 };
 

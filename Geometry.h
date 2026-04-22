@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 // 1. 首先包含 DirectX 核心库
 #include <DirectXMath.h>
@@ -83,8 +83,14 @@ public:
 	// debug
 	void SetName(const std::wstring& InName) { Name = InName; };
 	const std::wstring& GetName() const { return Name; };
+
+	// visibility
+	bool IsVisible() const { return bVisible; }
+	void SetVisible(bool bInVisible) { bVisible = bInVisible; }
+
 protected:
 
+	bool bVisible = true;
 	DirectX::XMFLOAT3 Pos = { 0.0f, 0.0f, 0.0f };
 	DirectX::XMFLOAT3 Angle = { 0.0f, 0.0f, 0.0f };
 	DirectX::XMFLOAT3 Scale = { 1.0f, 1.0f, 1.0f };

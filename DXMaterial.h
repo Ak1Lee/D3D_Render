@@ -87,6 +87,10 @@ class MaterialManager
 	Material& GetOrCreateMaterial(const std::string& name);
 	Material* GetMaterialByName(const std::string& name);
 
+	const std::unordered_map<std::string, std::shared_ptr<Material>>& GetAllMaterials() const {
+		return Materials;
+	}
+
 	void AddMaterial(std::shared_ptr<Material> InMaterial) {
 		Materials[InMaterial->GetName()] = InMaterial;
 	}
