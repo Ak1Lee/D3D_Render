@@ -65,28 +65,28 @@ void Texture::SetAsRenderTarget(ID3D12GraphicsCommandList* CmdList, Texture* Dep
 
 void Texture::BindSRV_Graphics(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. ×Ô¶¯ÅÐ¶Ï²¢ÇÐ»»×´Ì¬
+	// 1. è‡ªåŠ¨åˆ¤æ–­å¹¶åˆ‡æ¢çŠ¶æ€
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	// 2. °ó¶¨¾ä±ú
+	// 2. ç»‘å®šå¥æŸ„
 	CmdList->SetGraphicsRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
 }
 
 void Texture::BindSRV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. ×Ô¶¯ÅÐ¶Ï²¢ÇÐ»»×´Ì¬
+	// 1. è‡ªåŠ¨åˆ¤æ–­å¹¶åˆ‡æ¢çŠ¶æ€
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	// 2. °ó¶¨¾ä±ú
+	// 2. ç»‘å®šå¥æŸ„
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
 }
 
 void Texture::BindUAV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. ×Ô¶¯ÅÐ¶Ï²¢ÇÐ»»×´Ì¬
+	// 1. è‡ªåŠ¨åˆ¤æ–­å¹¶åˆ‡æ¢çŠ¶æ€
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	// 2. °ó¶¨¾ä±ú
+	// 2. ç»‘å®šå¥æŸ„
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, GetUAV_G());
 }
 
@@ -167,7 +167,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	TexDesc.Height = Height;
 	TexDesc.DepthOrArraySize = ArraySize;
 	TexDesc.MipLevels = MipLevels;
-	TexDesc.Format = GetTypelessFormat(Format); // ¡¾¹Ø¼ü¡¿×ÊÔ´±¾ÉíÒªÊÇ Typeless
+	TexDesc.Format = GetTypelessFormat(Format); // ã€å…³é”®ã€‘èµ„æºæœ¬èº«è¦æ˜¯ Typeless
 	TexDesc.SampleDesc.Count = 1;
 	TexDesc.SampleDesc.Quality = 0;
 	TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -178,14 +178,14 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	if (HasFlag(ViewFlags, TextureViewFlags::RTV))
 	{
 		optClear.Format = Format;
-		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // Ä¬ÈÏÎªºÚÉ«
+		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // é»˜è®¤ä¸ºé»‘è‰²
 		pClearValue = &optClear;
 	}
 	else if(HasFlag(ViewFlags, TextureViewFlags::DSV))
 	{
 		optClear.Format = GetDSVFormat(Format);
-		optClear.DepthStencil.Depth = m_ClearDepth;   // Ä¬ÈÏÎª 1.0f
-		optClear.DepthStencil.Stencil = m_ClearStencil; // Ä¬ÈÏÎª 0
+		optClear.DepthStencil.Depth = m_ClearDepth;   // é»˜è®¤ä¸º 1.0f
+		optClear.DepthStencil.Stencil = m_ClearStencil; // é»˜è®¤ä¸º 0
 		pClearValue = &optClear;
 	}
 	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
@@ -198,7 +198,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 		D3D12_HEAP_FLAG_NONE,
 		&TexDesc,
 		initialState,
-		pClearValue, // Èç¹û²»ÊÇ RT/DSV£¬ÕâÀï±ØÐëÊÇ nullptr
+		pClearValue, // å¦‚æžœä¸æ˜¯ RT/DSVï¼Œè¿™é‡Œå¿…é¡»æ˜¯ nullptr
 		IID_PPV_ARGS(&Resource)
 	);
 
@@ -429,6 +429,8 @@ void Texture::CreateResourceHeap(ID3D12Device* device, ID3D12GraphicsCommandList
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE
 	);
 	CmdList->ResourceBarrier(1, &Barrier);
+	CurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
 
 }
 

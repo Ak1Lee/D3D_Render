@@ -190,6 +190,7 @@
     <ClInclude Include="Geometry.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="render.h" />
+    <ClInclude Include="RenderPass.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Texture.h" />
   </ItemGroup>

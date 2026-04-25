@@ -15,6 +15,7 @@
 #include "DescriptorAllocator.h"
 #include "Texture.h"
 #include "camera.h"
+#include "RenderPass.h"
 #include <functional>
 #include <assimp/Importer.hpp>
 
@@ -23,18 +24,7 @@ inline unsigned int Width = 1920;
 inline unsigned int Height = 1080;
 
 
-struct RenderPass
-{
-    std::string Name;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> PSO;
-    Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSig; // �����ͬ Pass RootSig ��ͬ
 
-    // �ӿںͲü�����
-    D3D12_VIEWPORT Viewport;
-    D3D12_RECT ScissorRect;
-
-    std::function<void(ID3D12GraphicsCommandList*)> Execute;
-};
 
 class GraphicsPSOBuilder
 {
@@ -314,11 +304,18 @@ private:
     D3D12_RECT m_ShadowScissorRect;
 
     // Pass
-    RenderPass ShadowPass;
-	RenderPass MainPass;
-    RenderPass ShadowMaskPass;
-	RenderPass ZPrePass;
-    RenderPass SkyPass;
+ //   RenderPass ShadowPass;
+	//RenderPass MainPass;
+ //   RenderPass ShadowMaskPass;
+	//RenderPass ZPrePass;
+ //   RenderPass SkyPass;
+
+	ComPtr<ID3D12PipelineState> m_shadowPassPSO;
+    ComPtr<ID3D12PipelineState> m_shadowMaskPassPSO;
+    ComPtr<ID3D12PipelineState> m_zPrePassPSO;
+    ComPtr<ID3D12PipelineState> m_skyPassPSO;
+    ComPtr<ID3D12PipelineState> m_mainPassPSO;
+
 
     bool bEnableMultiThreadRecord = false;
     float m_LastRecordTimeMs = 0.0f;
@@ -346,6 +343,8 @@ private:
 	std::shared_ptr<Texture> m_PrefilterMap;
 	std::shared_ptr<Texture> m_BrdfLUTTexture;
 	std::shared_ptr<Texture> m_DefaultWhiteTexture;
+    //GBuffer
+
 
     // SKYBOX
     Box* SkyboxMesh = nullptr;
@@ -354,5 +353,7 @@ private:
     D3D12_GRAPHICS_PIPELINE_STATE_DESC TempPsoDesc;
 
     class EditorUI* m_UI = nullptr;
+
+	PassManager m_PassManager;
 };
 
