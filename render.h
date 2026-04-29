@@ -144,6 +144,8 @@ public:
 
     void InitRootSignature();
 
+	void InitDeferredLightRootSignature();
+
     void CompileShader();
 
     void InitInputLayout();
@@ -177,9 +179,9 @@ public:
 
     void InitZPrepassPSO();
     void InitSkyPassPSO();
+    void InitDeferredLightPassPSO();
+    void InitBasePass();
 
-    //csTest
-    //todo 
 	void InitComputeRootSignature();
     void ComputeCubemap();
 	void InitIrradianceMapCompute();
@@ -190,6 +192,9 @@ public:
 	void ComputePrefilterMap();
     void InitBRDFLUT();
 	void ComputeBRDFLUT();
+
+    void InitGBuffers();
+
 
 
     
@@ -225,6 +230,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> RtvHeap;
     Microsoft::WRL::ComPtr<ID3D12Resource> RenderTargets[FrameBufferCount];
     Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> m_DeferredRootSignature;
     Microsoft::WRL::ComPtr<ID3DBlob> Signature;
 
 	int CurrentSrvHeapIndex = 0;
@@ -315,6 +321,8 @@ private:
     ComPtr<ID3D12PipelineState> m_zPrePassPSO;
     ComPtr<ID3D12PipelineState> m_skyPassPSO;
     ComPtr<ID3D12PipelineState> m_mainPassPSO;
+    ComPtr<ID3D12PipelineState> m_bassPassPSO;
+    ComPtr<ID3D12PipelineState> m_deferredLightPassPSO;
 
 
     bool bEnableMultiThreadRecord = false;
@@ -344,6 +352,12 @@ private:
 	std::shared_ptr<Texture> m_BrdfLUTTexture;
 	std::shared_ptr<Texture> m_DefaultWhiteTexture;
     //GBuffer
+    // GBuffer0     :rgb:albedo     a: roughness
+    std::shared_ptr<Texture> m_GBuffer0;
+    // GBuffer1     :rgb:normal     a: metallic
+    std::shared_ptr<Texture> m_GBuffer1;
+	// GBuffer2     :rgb:emissive   a: occlusion
+    std::shared_ptr<Texture> m_GBuffer2;
 
 
     // SKYBOX

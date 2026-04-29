@@ -9,7 +9,7 @@ struct DescriptorAllocation
     D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle;
     UINT Index = -1;
 };
-// ³£Á¿»º³åÇø½á¹¹
+// å¸¸é‡ç¼“å†²åŒºç»“æ„
 struct ObjectConstants
 {
 	DirectX::XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
@@ -22,17 +22,17 @@ struct MaterialConstants
     float Roughness = 0.5f;    // 4 bytes
     float Metallic = 0.1f;     // 4 bytes
     float AO = 0;           // 4 bytes
-    float Padding;      // 4 bytes (´ÕÆë 16 bytes ¶ÔÆë)
+    float Padding;      // 4 bytes (å‡‘é½ 16 bytes å¯¹é½)
 };
 
-// ¹âÕÕ³£Á¿»º³åÇø½á¹¹
+// å…‰ç…§å¸¸é‡ç¼“å†²åŒºç»“æ„
 struct LightConstants
 {
     DirectX::XMFLOAT3 LightDirection = { 1.f, 1.f, 0.f };
     float LightIntensity = 1.0f;
 
     DirectX::XMFLOAT3 LightColor = { 1.0f, 1.0f, 1.0f };
-    float LightSize = 1.0f; // light ÎïÀí³ß´ç
+    float LightSize = 1.0f; // light ç‰©ç†å°ºå¯¸
 
     DirectX::XMFLOAT3 AmbientColor = { 0.1f, 0.1f, 0.1f };
     float _Padding2;
@@ -40,11 +40,14 @@ struct LightConstants
     DirectX::XMFLOAT3 CameraPosition = { 0.0f, 0.0f, 0.0f };
     float _Padding3;
 
-	// Light View-Projection ¾ØÕó£¬ÓÃÓÚÒõÓ°Ó³Éä
+	// Light View-Projection çŸ©é˜µï¼Œç”¨äºé˜´å½±æ˜ å°„
     DirectX::XMFLOAT4X4 LightViewProj = MathHelper::Identity4x4();
+
+	// camera inverse view matrix
+	DirectX::XMFLOAT4X4 CameraInvViewProj = MathHelper::Identity4x4();
 };
 
-// ¶¥µã½á¹¹
+// é¡¶ç‚¹ç»“æ„
 struct SimpleVertex
 {
     DirectX::XMFLOAT3 position;
@@ -54,12 +57,12 @@ struct SimpleVertex
 struct StandardVertex
 {
 	
-    // »ù´¡ÊôĞÔ
-    DirectX::XMFLOAT3 Position;     // Æ«ÒÆ: 0,  ´óĞ¡: 12×Ö½Ú
-	DirectX::XMFLOAT3 Normal;       // Æ«ÒÆ: 12, ´óĞ¡: 12×Ö½Ú
-	DirectX::XMFLOAT2 TexCoord;     // Æ«ÒÆ£º24, ´óĞ¡: 8×Ö½Ú
-	DirectX::XMFLOAT3 Tangent;      // Æ«ÒÆ£º32, ´óĞ¡: 12×Ö½Ú
-	DirectX::XMFLOAT4 Color;        // Æ«ÒÆ£º44, ´óĞ¡: 16×Ö½Ú
+    // åŸºç¡€å±æ€§
+    DirectX::XMFLOAT3 Position;     // åç§»: 0,  å¤§å°: 12å­—èŠ‚
+	DirectX::XMFLOAT3 Normal;       // åç§»: 12, å¤§å°: 12å­—èŠ‚
+	DirectX::XMFLOAT2 TexCoord;     // åç§»ï¼š24, å¤§å°: 8å­—èŠ‚
+	DirectX::XMFLOAT3 Tangent;      // åç§»ï¼š32, å¤§å°: 12å­—èŠ‚
+	DirectX::XMFLOAT4 Color;        // åç§»ï¼š44, å¤§å°: 16å­—èŠ‚
 
     StandardVertex() = default;
 

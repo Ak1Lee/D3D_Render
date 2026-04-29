@@ -83,6 +83,10 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     InitShadowMaskPSO();
     InitZPrepassPSO();
 	InitSkyPassPSO();
+	InitDeferredLightPassPSO();
+
+	InitGBuffers();
+	InitBasePass();
 	InitPasses();
 	
     ThrowIfFailed(CommandAllocator->Reset());
@@ -165,7 +169,7 @@ void DXRender::InitDX(HWND hWnd)
 
 
     InitRootSignature();
-
+	InitDeferredLightRootSignature();
     InitComputeRootSignature();
     InitIrradianceMapCompute();
 
@@ -580,6 +584,94 @@ void DXRender::InitRootSignature()
     RootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
 
 }
+void DXRender::InitDeferredLightRootSignature()
+{
+    DXRootSignature rootSigBuilder;
+
+    // Index 0: b0 Light CB (Root CBV)
+    rootSigBuilder.AddRootConstantBufferView(0);
+
+
+    // t0 GBuffer0
+	rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	// t1 GBuffer1
+	rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	// t2 GBuffer2
+	rootSigBuilder.AddSRVDescriptorTable(2, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+    // t3 GBuffer3
+    rootSigBuilder.AddSRVDescriptorTable(3, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	// t4 Shadow Mask
+    rootSigBuilder.AddSRVDescriptorTable(4, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+	// t5 Irradiance Map
+    rootSigBuilder.AddSRVDescriptorTable(5, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+	// t6 Prefilter Map
+    rootSigBuilder.AddSRVDescriptorTable(6, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+	// t7 BRDF LUT
+    rootSigBuilder.AddSRVDescriptorTable(7, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+	// t8 depth
+    rootSigBuilder.AddSRVDescriptorTable(8, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+
+
+    //sampler
+    // point sampler
+    D3D12_STATIC_SAMPLER_DESC samplerPointClamp = {};
+    samplerPointClamp.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+    samplerPointClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerPointClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerPointClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerPointClamp.MipLODBias = 0;
+    samplerPointClamp.MaxAnisotropy = 0;
+    samplerPointClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerPointClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerPointClamp.MinLOD = 0.0f;
+    samplerPointClamp.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerPointClamp.ShaderRegister = 0; // 【关键】必须是 s0 匹配 shader
+    samplerPointClamp.RegisterSpace = 0;
+    samplerPointClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    //PCF 
+    D3D12_STATIC_SAMPLER_DESC samplerShadow = {};
+    samplerShadow.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT; 
+    samplerShadow.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+    samplerShadow.MipLODBias = 0;
+    samplerShadow.MaxAnisotropy = 0;
+    samplerShadow.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL; 
+    samplerShadow.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerShadow.MinLOD = 0.0f;
+    samplerShadow.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerShadow.ShaderRegister = 1; // 【关键】必须是 s1 匹配 shader
+    samplerShadow.RegisterSpace = 0;
+    samplerShadow.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    //IBL Linear + Clamp
+    D3D12_STATIC_SAMPLER_DESC samplerLinear = {};
+    samplerLinear.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; 
+    samplerLinear.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; 
+    samplerLinear.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; 
+    samplerLinear.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    samplerLinear.MipLODBias = 0;
+    samplerLinear.MaxAnisotropy = 0; // 【关键】如果 Filter 不是 ANISOTROPIC，这里必须为 0，否则 Build 会报错！
+    samplerLinear.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+    samplerLinear.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    samplerLinear.MinLOD = 0.0f;
+    samplerLinear.MaxLOD = D3D12_FLOAT32_MAX;
+    samplerLinear.ShaderRegister = 2; // 【关键】必须是 s2 匹配 shader
+    samplerLinear.RegisterSpace = 0;
+    samplerLinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    rootSigBuilder.AddStaticSampler(samplerPointClamp);
+    rootSigBuilder.AddStaticSampler(samplerShadow);
+    rootSigBuilder.AddStaticSampler(samplerLinear);
+    m_DeferredRootSignature = rootSigBuilder.Build(Device::GetInstance().GetD3DDevice());
+
+
+}
 void DXRender::InitComputeRootSignature()
 {
     CD3DX12_DESCRIPTOR_RANGE srvRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0); // t0
@@ -624,6 +716,43 @@ void DXRender::InitComputeRootSignature()
     if (FAILED(hr)) {
         throw std::runtime_error("Failed to create Compute PSO");
     }
+}
+
+void DXRender::InitBasePass()
+{
+    // root signature
+
+	// PSO
+
+    auto VS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"BasePassVS", L"BasePass.hlsl", "VSMain", "vs_5_0"
+    )->GetBytecode();
+    auto PS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"BasePassPS", L"BasePass.hlsl", "PSMain", "ps_5_0"
+    )->GetBytecode();
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
+    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
+    psoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
+    psoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    CD3DX12_DEPTH_STENCIL_DESC depthDesc(D3D12_DEFAULT);
+    depthDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    depthDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    psoDesc.DepthStencilState = depthDesc;
+
+    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.NumRenderTargets = 3;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    psoDesc.RTVFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    psoDesc.SampleDesc.Count = 1;
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_bassPassPSO)));
+
 }
 
 void DXRender::ComputeCubemap()
@@ -856,6 +985,36 @@ void DXRender::ComputeBRDFLUT()
 	m_BrdfLUTTexture->BindUAV_Compute(CommandList.Get(), 1);
     // 512 / 32 = 16
     CommandList->Dispatch(16, 16, 1);
+
+}
+
+void DXRender::InitGBuffers()
+{
+    m_GBuffer0 = std::make_shared<Texture>("GBuffer0");
+    m_GBuffer1 = std::make_shared<Texture>("GBuffer1");
+    m_GBuffer2 = std::make_shared<Texture>("GBuffer2");
+
+    TextureDesc GBuffer0Desc;
+	GBuffer0Desc.Width = Width;
+	GBuffer0Desc.Height = Height;
+    GBuffer0Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    GBuffer0Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+	m_GBuffer0->Create(CommandList.Get(), GBuffer0Desc);
+
+    TextureDesc GBuffer1Desc;
+    GBuffer1Desc.Width = Width;
+    GBuffer1Desc.Height = Height;
+    GBuffer1Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    GBuffer1Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+    m_GBuffer1->Create(CommandList.Get(), GBuffer1Desc);
+
+    TextureDesc GBuffer2Desc;
+    GBuffer2Desc.Width = Width;
+    GBuffer2Desc.Height = Height;
+    GBuffer2Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    GBuffer2Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+    m_GBuffer2->Create(CommandList.Get(), GBuffer2Desc);
+
 
 }
 
@@ -1404,7 +1563,189 @@ void DXRender::InitPasses()
         };
 
 
-	auto& MainPass = m_PassManager.AddPass("MainPass");
+    //Basepass
+    auto& BasePass = m_PassManager.AddPass("BasePass");
+	BasePass.PSO = m_bassPassPSO;
+	BasePass.RootSig = RootSignature;
+	BasePass.AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	BasePass.AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	BasePass.AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    BasePass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    BasePass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
+            auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
+            D3D12_CPU_DESCRIPTOR_HANDLE rtvs[] = {
+                m_GBuffer0->GetRTV(),
+                m_GBuffer1->GetRTV(),
+                m_GBuffer2->GetRTV()
+            };
+			auto dsv = m_SceneDepth->GetDSV();
+			m_GBuffer0->Clear(CommandList);
+            m_GBuffer1->Clear(CommandList);
+            m_GBuffer2->Clear(CommandList);
+
+            CommandList->OMSetRenderTargets(3, rtvs, FALSE, &dsv);
+            CommandList->RSSetViewports(1, &ScreenViewport);
+            CommandList->RSSetScissorRects(1, &ScissorRect);
+
+            auto MainCameraPos = MainCamera.GetPosition();
+            LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
+            DirectX::XMMATRIX ViewProj = MainCamera.CalViewProjMatrix();
+            DirectX::XMVECTOR det;
+            DirectX::XMMATRIX InvViewProj = XMMatrixInverse(&det, ViewProj);
+            XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, XMMatrixTranspose(InvViewProj));
+
+            if (CurrFrameResource.LightConstantBufferMappedData)
+            {
+                memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
+            }
+            CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+            const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
+            const UINT MatConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
+            for (int i = 0; i < MeshList.size(); ++i)
+            {
+
+                auto MeshElement = MeshList[i];
+                if (!MeshElement->IsVisible()) continue;
+                {
+                    auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
+                    auto M_Matrix = MeshElement->GetWorldMatrix();
+                    ObjectConstants objConstants;
+                    DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
+                    DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
+					// 更新帧资源的constantbuffer+idx偏移的数据
+                    memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));              
+                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+
+                    auto MaterialName = MeshElement->GetMaterialName();
+                    Material* MaterialPtr = MaterialManager::GetInstance().GetMaterialByName(MaterialName);
+
+                    MaterialConstants matConstants;
+                    if (MaterialPtr)
+                    {
+                        //MaterialPtr->Bind(CommandList);
+                        //std::cout << "Binding Material: " << MaterialName << std::endl;
+                        memcpy(CurrFrameResource.MaterialConstantBufferMappedData + i * MatConstantBufferSize, &MaterialPtr->GetConstantData(), sizeof(matConstants));
+                        CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.MaterialConstantBuffer->GetGPUVirtualAddress() + i * MatConstantBufferSize);
+                        if (MaterialPtr->HasAlbedoTexture())
+                        {
+                            MaterialPtr->GetAlbedoTexture()->BindSRV_Graphics(CommandList, 8);
+                        }
+                        else
+                        {
+                            m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
+                        }
+                        if (MaterialPtr->HasNormalTexture())
+                        {
+                            MaterialPtr->GetNormalTexture()->BindSRV_Graphics(CommandList, 9);
+                        }
+                        if (MaterialPtr->HasMetallicTexture())
+                        {
+                            MaterialPtr->GetMetallicTexture()->BindSRV_Graphics(CommandList, 10);
+                        }
+
+                    }
+                    else
+                    {
+                        m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
+                    }
+                }
+
+
+                CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                auto VertexBufferView = MeshElement->GetVertexBufferView();
+                CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
+                auto IndexBufferView = MeshElement->GetIndexBufferView();
+                CommandList->IASetIndexBuffer(&IndexBufferView);
+
+                CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
+            }
+
+        };
+
+	auto& DeferredLightPass = m_PassManager.AddPass("DeferredLightPass");
+	DeferredLightPass.PSO = m_deferredLightPassPSO;
+	DeferredLightPass.RootSig = m_DeferredRootSignature.Get();
+    DeferredLightPass.AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    // GBUFFER3 TO DO
+    DeferredLightPass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_ShadowMask.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_IrradianceMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_PrefilterMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.AddDependency(m_BrdfLUTTexture.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    DeferredLightPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
+            auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
+
+            CD3DX12_RESOURCE_BARRIER Barrier_P2RT = CD3DX12_RESOURCE_BARRIER::Transition(
+                RenderTargets[CurrentFrameIdx].Get(),
+                D3D12_RESOURCE_STATE_PRESENT,
+                D3D12_RESOURCE_STATE_RENDER_TARGET
+            );
+            CommandList->ResourceBarrier(1, &Barrier_P2RT);
+            D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
+            CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
+
+            const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
+            CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
+
+            CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, nullptr);
+            CommandList->RSSetViewports(1, &ScreenViewport);
+            CommandList->RSSetScissorRects(1, &ScissorRect);
+
+            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            CommandList->DrawInstanced(3, 1, 0, 0);
+
+            ID3D12DescriptorHeap* descriptorHeaps[] = {
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+            };
+            CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+            {
+                //Light Constants
+                auto MainCameraPos = MainCamera.GetPosition();
+                LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
+                DirectX::XMMATRIX ViewProj = MainCamera.CalViewProjMatrix();
+                DirectX::XMVECTOR det;
+                DirectX::XMMATRIX InvViewProj = XMMatrixInverse(&det, ViewProj);
+                XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, XMMatrixTranspose(InvViewProj));
+
+                if (CurrFrameResource.LightConstantBufferMappedData)
+                {
+                    memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
+                }
+                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+
+            }
+            {
+                m_GBuffer0->BindSRV_Graphics(CommandList, 1);
+                m_GBuffer1->BindSRV_Graphics(CommandList, 2);
+                m_GBuffer2->BindSRV_Graphics(CommandList, 3);
+
+
+                m_ShadowMask->BindSRV_Graphics(CommandList, 5);
+                m_IrradianceMap->BindSRV_Graphics(CommandList, 6);
+                m_PrefilterMap->BindSRV_Graphics(CommandList, 7);
+                m_BrdfLUTTexture->BindSRV_Graphics(CommandList, 8);
+                m_SceneDepth->BindSRV_Graphics(CommandList, 9);
+            }
+
+
+
+
+            CommandList->DrawInstanced(3, 1, 0, 0);
+
+        };
+
+
+
+	//auto& MainPass = m_PassManager.AddPass("MainPass");
+    auto MainPass = RenderPass();
+
 	MainPass.PSO = PipelineState; // 之前创建的主渲染 PSO
 	MainPass.RootSig = RootSignature;
 	MainPass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -1714,6 +2055,34 @@ void DXRender::InitSkyPassPSO()
     psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
 	ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skyPassPSO)));
+}
+
+void DXRender::InitDeferredLightPassPSO()
+{
+    auto VS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"DeferredLightVS", L"DeferredLightShader.hlsl", "VSMain", "vs_5_0"
+    )->GetBytecode();
+    auto PS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"DeferredLightPS", L"DeferredLightShader.hlsl", "PSMain", "ps_5_0"
+    )->GetBytecode();
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+
+    psoDesc.InputLayout = { nullptr, 0 };
+    psoDesc.pRootSignature = m_DeferredRootSignature.Get();
+    psoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
+    psoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState.DepthEnable = false;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count = 1;
+    psoDesc.SampleMask = UINT_MAX;
+    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_deferredLightPassPSO)));
 }
 
 
