@@ -1,4 +1,4 @@
-#include "camera.h"
+ï»¿#include "camera.h"
 #include <algorithm>
 #include <iostream>
 
@@ -88,12 +88,12 @@ void Camera::ProcessKeyboard(char key, float dt)
 
 void Camera::ProcessMouse(float dx, float dy)
 {
-    float sensitivity = 0.002f; // Êó±êÁéÃô¶È
+    float sensitivity = 0.002f; // é¼ æ ‡çµæ•åº¦
     Yaw += dx * sensitivity;
     Pitch += dy * sensitivity;
 	std::cout << "Camera Yaw: " << Yaw << ", Pitch: " << Pitch << std::endl;
 
-    // ÏŞÖÆ pitch [-89,89] ±ÜÃâ·­×ª
+    // é™åˆ¶ pitch [-89,89] é¿å…ç¿»è½¬
     if (Pitch > XM_PIDIV2 - 0.1f) Pitch = XM_PIDIV2 - 0.1f;
     if (Pitch < -XM_PIDIV2 + 0.1f) Pitch = -XM_PIDIV2 + 0.1f;
 
@@ -165,7 +165,7 @@ LRESULT Camera::CameraWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     case WM_KEYDOWN:
     {
         char key = static_cast<char>(wParam);
-        float dt = 0.016f; // ¼ÙÉèÃ¿Ö¡16ms
+        float dt = 0.016f; // å‡è®¾æ¯å¸§16ms
         ProcessKeyboard(key, dt);
     }
 	break;

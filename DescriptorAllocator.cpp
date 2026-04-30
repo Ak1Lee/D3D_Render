@@ -1,4 +1,4 @@
-#include "DescriptorAllocator.h"
+﻿#include "DescriptorAllocator.h"
 #include "dxUtils.h"
 
 void DescriptorHeap::Init(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, UINT numDescriptors, bool shaderVisible)

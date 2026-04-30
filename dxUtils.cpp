@@ -1,4 +1,4 @@
-
+ï»¿
 #include "dxUtils.h"
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& filename, int lineNumber) :
@@ -16,7 +16,7 @@ std::wstring AnsiToWString(const std::string& str)
 }
 std::wstring DxException::ToString() const
 {
-    // »ñÈ¡´íÎóÂëµÄ×Ö·û´®ÃèÊö
+    // è·å–é”™è¯¯ç çš„å­—ç¬¦ä¸²æè¿°
     _com_error err(ErrorCode);
     std::wstring msg = err.ErrorMessage();
 

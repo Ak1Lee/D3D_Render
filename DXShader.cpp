@@ -1,4 +1,4 @@
-#include "DXShader.h"
+ï»¿#include "DXShader.h"
 #include "dxUtils.h"
 
 DXShader::DXShader(const std::wstring& shaderName, const std::wstring& filePath, const std::string& entryPoint, const std::string& target)
@@ -41,8 +41,8 @@ DXShader* DXShaderManager::CreateOrFindShader(const std::wstring& ShaderName, co
 			Target.c_str(),
 			compileFlags,
 			0,
-			(ShaderPtr.get()->GetBytecodeAddress()),    // Êä³öµ½Õâ¸öÁÙÊ±±äÁ¿
-			&errors       // ´íÎóÐÅÏ¢Êä³öµ½ÕâÀï
+			(ShaderPtr.get()->GetBytecodeAddress()),    // è¾“å‡ºåˆ°è¿™ä¸ªä¸´æ—¶å˜é‡
+			&errors       // é”™è¯¯ä¿¡æ¯è¾“å‡ºåˆ°è¿™é‡Œ
 		);
 
 		if (FAILED(hr))

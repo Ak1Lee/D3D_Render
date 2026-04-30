@@ -16,6 +16,12 @@
     <Filter Include="源文件\Resource">
       <UniqueIdentifier>{fbd0111c-0fb8-45a5-a127-7e71cf1d89b9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\RenderPasses">
+      <UniqueIdentifier>{5b060cf1-86f1-437b-9f20-43fba08bbf8e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\RenderPasses">
+      <UniqueIdentifier>{df92dcad-5a29-4169-919f-d7c94ba53e32}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EditorUI.cpp">
@@ -92,6 +98,12 @@
     </ClCompile>
     <ClCompile Include="Texture.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPasses\IRenderPass.cpp">
+      <Filter>源文件\RenderPasses</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPasses\RenderPasses.cpp">
+      <Filter>源文件\RenderPasses</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -175,6 +187,12 @@
     </ClInclude>
     <ClInclude Include="RenderPass.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPasses\IRenderPass.h">
+      <Filter>头文件\RenderPasses</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPasses\RenderPasses.h">
+      <Filter>头文件\RenderPasses</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

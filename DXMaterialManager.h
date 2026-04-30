@@ -1,4 +1,4 @@
-class DXMaterial;
+﻿class DXMaterial;
 
 class DXMaterialManager
 {

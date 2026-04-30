@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "DirectXMath.h"
 #include "MathHelper.h"
@@ -53,8 +53,8 @@ private:
 	DirectX::XMFLOAT3 Right		= DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
 
 
-	float Yaw = 1.57f;     // ×óÓÒ½Ç
-	float Pitch = 0.0f;   // ÉÏÏÂ½Ç
+	float Yaw = 1.57f;     // å·¦å³è§’
+	float Pitch = 0.0f;   // ä¸Šä¸‹è§’
 
 	float MoveSpeed = 10.0f;
 

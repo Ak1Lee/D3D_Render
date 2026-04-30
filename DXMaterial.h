@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <d3d12.h>
 
@@ -67,8 +67,8 @@ private:
 	//Microsoft::WRL::ComPtr<ID3D12Resource> ConstantBuffer;
 	//UINT8* pCbvDataBegin = nullptr;
 
-	//D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // ���� View ��
-	//D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind ��
+	//D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // 锟斤拷锟斤拷 View 锟斤拷
+	//D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind 锟斤拷
 	//unsigned int DescriptorIndex = 0;
 };
 

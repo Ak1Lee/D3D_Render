@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <d3d12.h>
 #include <wrl.h>
 #include <vector>
@@ -27,7 +27,7 @@ public:
         bool shaderVisible = false
     );
 
-    // ÖØÖÃ·ÖÅäÆ÷
+    // é‡ç½®åˆ†é…å™¨
     void Reset();
     void Release();
 
@@ -65,21 +65,21 @@ class DescriptorAllocatorManager
 public:
     static DescriptorAllocatorManager& GetInstance();
 
-    // ³õÊ¼»¯ËùÓĞ¶Ñ
+    // åˆå§‹åŒ–æ‰€æœ‰å †
     void Init(ID3D12Device* device);
 
-    // ·ÖÅä²»Í¬ÀàĞÍµÄÃèÊö·û
+    // åˆ†é…ä¸åŒç±»å‹çš„æè¿°ç¬¦
     DescriptorHandle AllocateRTV();
     DescriptorHandle AllocateDSV();
-    DescriptorHandle AllocateCBV_SRV_UAV();  // Shader ¿É¼û
+    DescriptorHandle AllocateCBV_SRV_UAV();  // Shader å¯è§
 
-    // ÅúÁ¿·ÖÅä£¨ÓÃÓÚ Descriptor Table£©
+    // æ‰¹é‡åˆ†é…ï¼ˆç”¨äº Descriptor Tableï¼‰
     // DescriptorHandle AllocateCBV_SRV_UAV_Range(UINT count);
 
-    // »ñÈ¡¶Ñ£¨ÓÃÓÚ SetDescriptorHeaps£©
+    // è·å–å †ï¼ˆç”¨äº SetDescriptorHeapsï¼‰
     ID3D12DescriptorHeap* GetCBV_SRV_UAV_Heap() const;
 
-    // »ñÈ¡ÃèÊö·û´óĞ¡
+    // è·å–æè¿°ç¬¦å¤§å°
     UINT GetRTVDescriptorSize() const;
     UINT GetDSVDescriptorSize() const;
     UINT GetCBV_SRV_UAV_DescriptorSize() const;
@@ -90,7 +90,7 @@ private:
     DescriptorAllocatorManager() = default;
     ID3D12Device* m_Device = nullptr;
 
-    // ËÄÖÖÀàĞÍµÄ¶Ñ
+    // å››ç§ç±»å‹çš„å †
     std::unique_ptr<DescriptorHeap> m_RTVHeap;
     std::unique_ptr<DescriptorHeap> m_DSVHeap;
     std::unique_ptr<DescriptorHeap> m_CBV_SRV_UAV_Heap;

@@ -1,10 +1,10 @@
-#pragma once
+﻿#pragma once
 
-// 1. 首先包含 DirectX 核心库
+// 1. 棣栧厛鍖呭惈 DirectX 鏍稿績搴?
 #include <DirectXMath.h>
 #include <DirectXColors.h>
 
-// 2. D3D12 和 Windows 头文件
+// 2. D3D12 鍜?Windows 澶存枃浠?
 #include <d3d12.h>
 #include <d3d12shader.h>
 #include <d3dcompiler.h>
@@ -13,11 +13,11 @@
 #include <windows.h>
 #include <wrl.h>
 
-// 3. 标准库
+// 3. 鏍囧噯搴?
 #include <vector>
 #include <string>
 
-// 4. 项目头文件（依赖DirectXMath）
+// 4. 椤圭洰澶存枃浠讹紙渚濊禆DirectXMath锛?
 #include "DXDevice.h"
 #include "Common.h"
 #include "DescriptorAllocator.h"
@@ -31,39 +31,39 @@ public:
 	MeshBase(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) {};
 
 
-	// === 核心接口 ===
+	// === 鏍稿績鎺ュ彛 ===
 
 	virtual void InitVertexBufferAndIndexBuffer(ID3D12Device* Device, ID3D12GraphicsCommandList* CommandList) = 0;
 	//virtual void InitRenderResource() = 0;
 
 
-	// === 缓冲区访问 ===
+	// === 缂撳啿鍖鸿闂?===
 	virtual D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const { return VertexBufferView; };
 	virtual D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const { return IndexBufferView; };
 	virtual UINT GetVertexCount() const { return VertexCount; };
 	virtual UINT GetIndexCount() const { return IndexCount; };
 
 
-	// === 变换接口 ===
+	// === 鍙樻崲鎺ュ彛 ===
 	virtual DirectX::XMMATRIX GetWorldMatrix();
 	virtual DirectX::XMMATRIX CalMVPMatrix(DirectX::XMMATRIX ViewProj);
 
-	// 位置
+	// 浣嶇疆
 	virtual DirectX::XMFLOAT3 GetPosition() const { return Pos; };
 	virtual void SetPosition(float x, float y, float z) { Pos = DirectX::XMFLOAT3(x, y, z); };
 	virtual void SetPosition(DirectX::XMFLOAT3 InPos) { Pos = InPos; };
 
-	// 旋转(欧拉角 Roll/Yaw/Pitch)
+	// 鏃嬭浆(娆ф媺瑙?Roll/Yaw/Pitch)
 	virtual DirectX::XMFLOAT3 GetAngle() const { return Angle; };
 	virtual void SetAngle(float rol, float yal, float pit) { Angle = DirectX::XMFLOAT3(rol, yal, pit); };
 	virtual void SetAngle(DirectX::XMFLOAT3 InAngle) { Angle = InAngle; };
 
-	// 缩放
+	// 缂╂斁
 	virtual DirectX::XMFLOAT3 GetScale() const { return Scale; };
 	virtual void SetScale(float sx, float sy, float sz) { Scale = DirectX::XMFLOAT3(sx, sy, sz); };
 	virtual void SetScale(DirectX::XMFLOAT3 InScale) { Scale = InScale; };
 
-	// 常量缓冲区
+	// 甯搁噺缂撳啿鍖?
 	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, UINT descriptorSize, UINT indexInHeap);
 	// not use
 	virtual void InitObjectConstantBuffer(ID3D12Device* Device, ID3D12DescriptorHeap* GlobalConstantBufferViewHeap, DescriptorAllocation DescriptorAllocInfo);
@@ -72,7 +72,7 @@ public:
 
 	virtual void UpdateObjectConstantBuffer(ObjectConstants& ObjConst);
 
-	// 材质
+	// 鏉愯川
 	virtual void SetMaterial(Material* InMaterialPtr) { MaterialPtr = InMaterialPtr; };
 	virtual void SetMaterialByName(const std::string& InMaterialName) { MaterialName = InMaterialName; };
 	std::string GetMaterialName() const { return MaterialName; };
@@ -122,11 +122,11 @@ protected:
 	unsigned int VertexCount = 0;
 	unsigned int IndexCount = 0;
 
-	// 材质
+	// 鏉愯川
 	Material* MaterialPtr = nullptr;
 	std::string MaterialName;
 
-	// === 调试 ===
+	// === 璋冭瘯 ===
 	std::wstring Name = L"Unnamed Mesh";
 };
 

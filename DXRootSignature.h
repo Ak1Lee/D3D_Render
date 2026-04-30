@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
 #include <wrl.h>
@@ -23,17 +23,17 @@ public:
 	// add a UAV descriptor table
 	void AddUAVDescriptorTable(UINT shaderRegister, UINT numDescriptors, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
-	// Ìí¼ÓRoot Constant
+	// æ·»åŠ Root Constant
 	void AddRootConstant(UINT shaderRegister, UINT num32BitValues, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
-	// Ìí¼ÓRoot ConstantBufferView
+	// æ·»åŠ Root ConstantBufferView
 	void AddRootConstantBufferView(UINT shaderRegister, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
-	// ²ÎÊıËµÃ÷£º
-	// shaderRegister: ¶ÔÓ¦ HLSL ÀïµÄ register(bX)£¬ÀıÈç 0 ¶ÔÓ¦ b0
-	// numValues:      ÓĞ¶àÉÙ¸ö 32Î»Êı¾İ (1¸ö float ¾ÍÊÇ 1£¬float4 ¾ÍÊÇ 4)
-	// registerSpace:  ¶ÔÓ¦ HLSL ÀïµÄ spaceX£¬Í¨³£ÊÇ 0
-	// visibility:     Ë­ÄÜ¿´µ½Õâ¸ö²ÎÊı (VS/PS/ALL)
+	// å‚æ•°è¯´æ˜ï¼š
+	// shaderRegister: å¯¹åº” HLSL é‡Œçš„ register(bX)ï¼Œä¾‹å¦‚ 0 å¯¹åº” b0
+	// numValues:      æœ‰å¤šå°‘ä¸ª 32ä½æ•°æ® (1ä¸ª float å°±æ˜¯ 1ï¼Œfloat4 å°±æ˜¯ 4)
+	// registerSpace:  å¯¹åº” HLSL é‡Œçš„ spaceXï¼Œé€šå¸¸æ˜¯ 0
+	// visibility:     è°èƒ½çœ‹åˆ°è¿™ä¸ªå‚æ•° (VS/PS/ALL)
 	void Add32BitConstants(UINT shaderRegister, UINT numValues, UINT registerSpace = 0, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 	void AddStaticSampler(const D3D12_STATIC_SAMPLER_DESC& samplerDesc);
@@ -41,9 +41,9 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> Build(ID3D12Device* device, D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 private:
-	// std::list<CD3DX12_DESCRIPTOR_RANGE> m_ranges;          // ±£´æËùÓĞrange
-	std::vector<CD3DX12_ROOT_PARAMETER> m_rootParameters;    // ±£´æËùÓĞroot parameter
-	std::vector<D3D12_STATIC_SAMPLER_DESC> m_staticSamplers; // ±£´æ¾²Ì¬²ÉÑùÆ÷
+	// std::list<CD3DX12_DESCRIPTOR_RANGE> m_ranges;          // ä¿å­˜æ‰€æœ‰range
+	std::vector<CD3DX12_ROOT_PARAMETER> m_rootParameters;    // ä¿å­˜æ‰€æœ‰root parameter
+	std::vector<D3D12_STATIC_SAMPLER_DESC> m_staticSamplers; // ä¿å­˜é™æ€é‡‡æ ·å™¨
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
 	Microsoft::WRL::ComPtr<ID3DBlob> Signature;

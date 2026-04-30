@@ -1,6 +1,6 @@
-#include "Common.h"
+ï»¿#include "Common.h"
 
-// ĞŞÕı StandardVertex ¹¹Ôìº¯Êı²ÎÊıÀàĞÍ£¬TexCoord Ó¦Îª XMFLOAT2£¬Color Ó¦Îª XMFLOAT4
+// ä¿®æ­£ StandardVertex æ„é€ å‡½æ•°å‚æ•°ç±»å‹ï¼ŒTexCoord åº”ä¸º XMFLOAT2ï¼ŒColor åº”ä¸º XMFLOAT4
 StandardVertex::StandardVertex(
     const DirectX::XMFLOAT3& InPosition,
     const DirectX::XMFLOAT3& InNormal,

@@ -1,12 +1,12 @@
-#include "DXDevice.h"
+ï»¿#include "DXDevice.h"
 #include <iostream>
 void Device::Init()
 {
     ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&DxgiFactory)));
 
-    // ´´½¨device
+    // åˆ›å»ºdevice
     HRESULT HardwareCreateResult = D3D12CreateDevice(
-        nullptr,             // Ä¬ÈÏÊÊÅäÆ÷
+        nullptr,             // é»˜è®¤é€‚é…å™¨
         D3D_FEATURE_LEVEL_11_0,
         IID_PPV_ARGS(&D3DDevice)
     );

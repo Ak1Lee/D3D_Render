@@ -1,4 +1,4 @@
-#include <SDKDDKVer.h>
+ï»¿#include <SDKDDKVer.h>
 #define WIN32_LEAN_AND_MEAN
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
@@ -55,7 +55,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 
-    //// ×¢²á´°¿ÚÀà
+    //// æ³¨å†Œçª—å£ç±»
     //WNDCLASS wc = {};
     //wc.lpfnWndProc = WndProc;
     //// wc.lpfnWndProc = WndProc;
@@ -63,7 +63,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     //wc.lpszClassName = L"MyWindowClass";
     //RegisterClass(&wc);
 
-    //// ´´½¨´°¿Ú
+    //// åˆ›å»ºçª—å£
     //HWND hwnd = CreateWindow(
     //    L"MyWindowClass", L"My DX12 App",
     //    WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
@@ -71,8 +71,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     //ShowWindow(hwnd, nCmdShow);
 
-    //AllocConsole(); // ÉêÇë¿ØÖÆÌ¨
-    //freopen("CONOUT$", "w", stdout); // °ó¶¨ std::cout µ½¿ØÖÆÌ¨
+    //AllocConsole(); // ç”³è¯·æ§åˆ¶å°
+    //freopen("CONOUT$", "w", stdout); // ç»‘å®š std::cout åˆ°æ§åˆ¶å°
     //freopen("CONOUT$", "w", stderr);
 
     //std::cout << "Hello Console!" << std::endl;

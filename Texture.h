@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <d3d12.h>
 #include <wrl.h>
@@ -84,7 +84,7 @@ struct TextureDesc
 };
 
 
-//基本的srv 资源
+//鍩烘湰鐨剆rv 璧勬簮
 class Texture
 {
 public:
@@ -102,7 +102,7 @@ public:
 		const std::string& Filename,
 		bool IsSRGB = false, bool IsHDR = false);
 
-	// 手动创建
+	// 鎵嬪姩鍒涘缓
 	void Create(
 		ID3D12GraphicsCommandList* CmdList,
 		const TextureDesc& Desc,
@@ -177,7 +177,7 @@ protected:
 	std::string Name;
 
 
-	// Views（使用 optional 实现懒加载）
+	// Views锛堜娇鐢?optional 瀹炵幇鎳掑姞杞斤級
 	std::optional<DescriptorHandle> m_SRVHandle;
 	std::optional<DescriptorHandle> m_UAVHandle;
 	std::optional<DescriptorHandle> m_RTVHandle;

@@ -58,7 +58,7 @@ DXRender& DXRender::GetInstance()
 void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     // Init Windows
-    // 初始化窗口类和函数
+    // 鍒濆鍖栫獥鍙ｇ被鍜屽嚱鏁?
     WNDCLASS wc = {};
     //wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -66,7 +66,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     wc.lpfnWndProc = GlobalWndProc;
     RegisterClass(&wc);
 
-    // 创建窗口
+    // 鍒涘缓绐楀彛
     HWND hwnd = CreateWindow(
         L"MyWindowClass", L"My DX12 App",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
@@ -76,23 +76,11 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
     InitDX(hwnd);
 
-    // shadow
-	InitShadowMap();
-    InitShadowPSO();
-	InitShadowMaskTexture();
-    InitShadowMaskPSO();
-    InitZPrepassPSO();
-	InitSkyPassPSO();
-	InitDeferredLightPassPSO();
-
-	InitGBuffers();
-	InitBasePass();
-	InitPasses();
-	
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
-    
-    // InitEnvCubeMap 需要 CommandList 处于打开状态
+    InitTextures();
+    InitPasses_new();
+    // InitEnvCubeMap 闇€瑕?CommandList 澶勪簬鎵撳紑鐘舵€?
     InitEnvCubeMapAndIrradianceMap();
     InitPrefilterRootSignature();
     InitBRDFLUT();
@@ -106,30 +94,41 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
     
 
-    // imgui - 在 InitDX 之后初始化
+    // imgui - 鍦?InitDX 涔嬪悗鍒濆鍖?
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    desc.NumDescriptors = 1; // ImGui 只需要一个位置存字体贴图
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // 必须是 Shader 可见的
+    desc.NumDescriptors = 1; // ImGui 鍙渶瑕佷竴涓綅缃瓨瀛椾綋璐村浘
+    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // 蹇呴』鏄?Shader 鍙鐨?
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&ImguiSrvHeap)));
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.Fonts->AddFontDefault();
-    io.Fonts->Build();
+    //io.Fonts->Build();
     ImGui::StyleColorsDark();
 
     ImGui_ImplWin32_Init(hwnd);
 
-    HRESULT hr = ImGui_ImplDX12_Init(Device::GetInstance().GetD3DDevice(), FrameBufferCount,
-        DXGI_FORMAT_R8G8B8A8_UNORM, ImguiSrvHeap.Get(),
-        ImguiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
-        ImguiSrvHeap->GetGPUDescriptorHandleForHeapStart());
-    if (FAILED(hr)) {
-        MessageBox(NULL, L"ImGui_ImplDX12_Init Failed!", L"Error", MB_OK);
-        return;
-    }
+    //HRESULT hr = ImGui_ImplDX12_Init(Device::GetInstance().GetD3DDevice(), FrameBufferCount,
+    //    DXGI_FORMAT_R8G8B8A8_UNORM, ImguiSrvHeap.Get(),
+    //    ImguiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
+    //    ImguiSrvHeap->GetGPUDescriptorHandleForHeapStart());
+    //if (FAILED(hr)) {
+    //    MessageBox(NULL, L"ImGui_ImplDX12_Init Failed!", L"Error", MB_OK);
+    //    return;
+    //}
+    // 鏇挎崲鏃х殑 ImGui_ImplDX12_Init 璋冪敤锛?
+    ImGui_ImplDX12_InitInfo init_info = {};
+    init_info.Device = Device::GetInstance().GetD3DDevice();
+    init_info.CommandQueue = CommandQueue.Get();  // 鍏抽敭锛佷紶鍏ヤ綘鐨?CommandQueue
+    init_info.NumFramesInFlight = FrameBufferCount;
+    init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    // 浣跨敤浣犵殑鎻忚堪绗﹀爢
+    init_info.SrvDescriptorHeap = ImguiSrvHeap.Get();
+    init_info.LegacySingleSrvCpuDescriptor = ImguiSrvHeap->GetCPUDescriptorHandleForHeapStart();
+    init_info.LegacySingleSrvGpuDescriptor = ImguiSrvHeap->GetGPUDescriptorHandleForHeapStart();
+    ImGui_ImplDX12_Init(&init_info);
 
     m_UI = new EditorUI(this);
 
@@ -182,8 +181,6 @@ void DXRender::InitDX(HWND hWnd)
 
     CreateConstantBufferView();
 
-
-    // shader应该也归属于material
     InitMaterial();
 
     // VIEWPORT and SCISSOR
@@ -203,7 +200,7 @@ void DXRender::InitDX(HWND hWnd)
 		BoxPtr->SetMaterialByName("Mat_Red");
         MeshList.push_back(BoxPtr);
     }
-    // 默认 1x1 白色贴图
+    // 榛樿 1x1 鐧借壊璐村浘
     {
         uint32_t whitePixel = 0xFFFFFFFF;
         m_DefaultWhiteTexture = std::make_shared<Texture>("DefaultWhite");
@@ -230,17 +227,17 @@ void DXRender::InitDX(HWND hWnd)
 
     for (int y = 0; y < rows; ++y)
     {
-        // 计算金属度 (0.0 -> 1.0)
+        // 璁＄畻閲戝睘搴?(0.0 -> 1.0)
         float metallic = (float)y / (float)(rows - 1);
 
         for (int x = 0; x < cols; ++x)
         {
-            // 计算粗糙度 (0.05 -> 1.0)
-            // Clamp 到 0.05 是为了防止除0错误导致亮点闪烁
+            // 璁＄畻绮楃硻搴?(0.05 -> 1.0)
+            // Clamp 鍒?0.05 鏄负浜嗛槻姝㈤櫎0閿欒瀵艰嚧浜偣闂儊
             float roughness = (std::max)((float)x / (float)(cols - 1), 0.05f);
 
-            //动态创建一个材质
-            // 给它起个唯一的名字，比如 "Mat_Test_0_0", "Mat_Test_0_1"
+            //鍔ㄦ€佸垱寤轰竴涓潗璐?
+            // 缁欏畠璧蜂釜鍞竴鐨勫悕瀛楋紝姣斿 "Mat_Test_0_0", "Mat_Test_0_1"
             std::string matName = "Mat_Test_" + std::to_string(x) + "_" + std::to_string(y);
 
             auto tempMat = std::make_shared<Material>(matName);
@@ -251,10 +248,10 @@ void DXRender::InitDX(HWND hWnd)
             MaterialManager::GetInstance().AddMaterial(tempMat);
 
 
-            // 4. 创建球体
+            // 4. 鍒涘缓鐞冧綋
             auto SpherePtr = new Sphere();
 
-            // 居中排列位置
+            // 灞呬腑鎺掑垪浣嶇疆
             float posX = (x - (cols / 2)) * spacing;
             float posY = (y - (rows / 2)) * spacing + 10;
             SpherePtr->SetPosition(posX, posY, 0.0f);
@@ -264,11 +261,11 @@ void DXRender::InitDX(HWND hWnd)
             // DescriptorHandle AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
             // SpherePtr->InitObjectConstantBuffer(Device::GetInstance().GetD3DDevice(), AllocInfo);
 
-            // 5. 绑定刚才创建的材质
-            // 如果你的 Sphere 支持直接传指针：
+            // 5. 缁戝畾鍒氭墠鍒涘缓鐨勬潗璐?
+            // 濡傛灉浣犵殑 Sphere 鏀寔鐩存帴浼犳寚閽堬細
             // SpherePtr->SetMaterial(tempMat);
 
-            // 或者如果必须传名字：
+            // 鎴栬€呭鏋滃繀椤讳紶鍚嶅瓧锛?
             SpherePtr->SetMaterialByName(matName);
 
             MeshList.push_back(SpherePtr);
@@ -301,7 +298,7 @@ void DXRender::InitDX(HWND hWnd)
     PtrMesh = new Box();
     PtrMesh->InitVertexBufferAndIndexBuffer(Device::GetInstance().GetD3DDevice(), CommandList.Get());
 
-    // 执行初始化命令
+    // 鎵ц鍒濆鍖栧懡浠?
     ExecuteCommandAndWaitForComplete();
 }
 
@@ -311,7 +308,7 @@ void DXRender::ExecuteCommandAndWaitForComplete()
     ID3D12CommandList* cmdLists[] = { CommandList.Get() };
     CommandQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
 
-    // 等待GPU完成初始化
+    // 绛夊緟GPU瀹屾垚鍒濆鍖?
     const UINT64 initFenceValue = ++FenceValue;
     ThrowIfFailed(CommandQueue->Signal(Fence.Get(), initFenceValue));
 
@@ -347,7 +344,7 @@ void DXRender::InitHandleSize()
 
 void DXRender::InitCommand()
 {
-    //创建命令队列
+    //鍒涘缓鍛戒护闃熷垪
     D3D12_COMMAND_QUEUE_DESC QueueDesc = {};
     QueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
     QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -388,7 +385,7 @@ void DXRender::InitSwapChain(HWND hWnd)
 
 void DXRender::InitRenderTargetHeapAndView()
 {
-    // RenderTargetView Heap 和 RenderTargetView 描述符大小
+    // RenderTargetView Heap 鍜?RenderTargetView 鎻忚堪绗﹀ぇ灏?
     D3D12_DESCRIPTOR_HEAP_DESC RtvHeapDesc = {};
     RtvHeapDesc.NumDescriptors = FrameBufferCount + 1;
     RtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -415,7 +412,7 @@ void DXRender::CreateConstantBufferView()
     //ConstantBufferViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     //ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateDescriptorHeap(&ConstantBufferViewHeapDesc, IID_PPV_ARGS(&ConstantBufferViewHeap)));
 
-    // 创建常量缓冲区 - 大小必须是256字节对齐 转移到 MeshBase
+    // 鍒涘缓甯搁噺缂撳啿鍖?- 澶у皬蹇呴』鏄?56瀛楄妭瀵归綈 杞Щ鍒?MeshBase
  //   const UINT constantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
 
     //CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -424,33 +421,33 @@ void DXRender::CreateConstantBufferView()
  //       D3D12_RESOURCE_STATE_GENERIC_READ,
  //       nullptr,
  //       IID_PPV_ARGS(&ObjectConstantBuffer)));
- //   // 映射并初始化
+ //   // 鏄犲皠骞跺垵濮嬪寲
  //   CD3DX12_RANGE readRange(0, 0);
  //   ThrowIfFailed(ObjectConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&ConstantBufferMappedData)));
  //   // ZeroMemory(ConstantBufferMappedData, constantBufferSize);
- //   // 创建CBV
+ //   // 鍒涘缓CBV
  //   D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
  //   cbvDesc.BufferLocation = ObjectConstantBuffer->GetGPUVirtualAddress();
- //   cbvDesc.SizeInBytes = constantBufferSize; // 必须是256字节对齐
+ //   cbvDesc.SizeInBytes = constantBufferSize; // 蹇呴』鏄?56瀛楄妭瀵归綈
     //Device::GetInstance().GetD3DDevice()->CreateConstantBufferView(&cbvDesc, ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart());
 
 	// Light Constant Buffer
 	const UINT LightConstantBufferSize = (sizeof(LightConstants) + 255) & ~255;
 
-    // 创建上传堆的常量缓冲资源
+    // 鍒涘缓涓婁紶鍫嗙殑甯搁噺缂撳啿璧勬簮
     CD3DX12_HEAP_PROPERTIES LightHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(LightConstantBufferSize);
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(&LightHeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
 		IID_PPV_ARGS(&LightConstantBuffer)));
-    // 2) 映射得到 CPU 可写指针
+    // 2) 鏄犲皠寰楀埌 CPU 鍙啓鎸囬拡
     CD3DX12_RANGE ReadRange(0, 0);
     ThrowIfFailed(LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData)));
     auto LightCvbHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	LightCbvCpuHandle = LightCvbHandle.CpuHandle;
 	LightCbvGpuHandle = LightCvbHandle.GpuHandle;
-    // 创建 CBV 
+    // 鍒涘缓 CBV 
     D3D12_CONSTANT_BUFFER_VIEW_DESC LightCbvDesc = {};
     LightCbvDesc.BufferLocation = LightConstantBuffer->GetGPUVirtualAddress();
     LightCbvDesc.SizeInBytes = LightConstantBufferSize;
@@ -481,7 +478,7 @@ void DXRender::CreateConstantBufferView()
 
 void DXRender::InitRootSignature()
 {
-    // 根参数 —— index 就是添加顺序
+    // 鏍瑰弬鏁?鈥斺€?index 灏辨槸娣诲姞椤哄簭
 	DXRootSignature rootSigBuilder;
     // Index 0: b0 Object CB (Root CBV)
     rootSigBuilder.AddRootConstantBufferView(0);
@@ -497,7 +494,7 @@ void DXRender::InitRootSignature()
     rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
     // ibl
-    // --- IBL 贴图表 (Index 5) ---
+    // --- IBL 璐村浘琛?(Index 5) ---
     // t10, t11, t12
     // Index 5: t10 (Irradiance)
     rootSigBuilder.AddSRVDescriptorTable(10, 1, D3D12_SHADER_VISIBILITY_PIXEL);
@@ -507,11 +504,11 @@ void DXRender::InitRootSignature()
     rootSigBuilder.AddSRVDescriptorTable(12, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
     // pbr tetxure
-	// --- PBR 贴图表 (Index 8) abedo ---
+	// --- PBR 璐村浘琛?(Index 8) abedo ---
     rootSigBuilder.AddSRVDescriptorTable(13, 1, D3D12_SHADER_VISIBILITY_PIXEL);
-    // --- PBR 贴图表 (Index 9) normal---
+    // --- PBR 璐村浘琛?(Index 9) normal---
     rootSigBuilder.AddSRVDescriptorTable(14, 1, D3D12_SHADER_VISIBILITY_PIXEL);
-    // --- PBR 贴图表 (Index 10) metallic---
+    // --- PBR 璐村浘琛?(Index 10) metallic---
     rootSigBuilder.AddSRVDescriptorTable(15, 1, D3D12_SHADER_VISIBILITY_PIXEL);
 
 
@@ -523,7 +520,7 @@ void DXRender::InitRootSignature()
     sampler.MipLODBias = 0;
     sampler.MaxAnisotropy = 0;
     sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE; // 视界外视为最远深度
+    sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE; // 瑙嗙晫澶栬涓烘渶杩滄繁搴?
     sampler.MinLOD = 0.0f;
     sampler.MaxLOD = D3D12_FLOAT32_MAX;
     sampler.ShaderRegister = 0; // s0
@@ -532,24 +529,24 @@ void DXRender::InitRootSignature()
 	rootSigBuilder.AddStaticSampler(sampler);
 
     D3D12_STATIC_SAMPLER_DESC samplerShadow = {};
-    samplerShadow.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT; // 开启比较 + 线性滤波
+    samplerShadow.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT; // 寮€鍚瘮杈?+ 绾挎€ф护娉?
     samplerShadow.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
     samplerShadow.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
     samplerShadow.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
     samplerShadow.MipLODBias = 0;
     samplerShadow.MaxAnisotropy = 0;
-    samplerShadow.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL; // 小于等于则为亮
+    samplerShadow.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL; // 灏忎簬绛変簬鍒欎负浜?
     samplerShadow.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerShadow.MinLOD = 0.0f;
     samplerShadow.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerShadow.ShaderRegister = 1; // 绑定到 s1
+    samplerShadow.ShaderRegister = 1; // 缁戝畾鍒?s1
     samplerShadow.RegisterSpace = 0;
     samplerShadow.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     rootSigBuilder.AddStaticSampler(samplerShadow);
 
     D3D12_STATIC_SAMPLER_DESC samplerLinear = {};
-    samplerLinear.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 线性
+    samplerLinear.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 绾挎€?
     samplerLinear.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerLinear.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     samplerLinear.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -559,16 +556,16 @@ void DXRender::InitRootSignature()
     samplerLinear.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerLinear.MinLOD = 0.0f;
     samplerLinear.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerLinear.ShaderRegister = 2; // <--- 关键：绑定到 s2
+    samplerLinear.ShaderRegister = 2; // <--- 鍏抽敭锛氱粦瀹氬埌 s2
     samplerLinear.RegisterSpace = 0;
     samplerLinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootSigBuilder.AddStaticSampler(samplerLinear);
 
     //IBL Linear + Clamp
     D3D12_STATIC_SAMPLER_DESC samplerIBL = {};
-    samplerIBL.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 必须是线性
-    samplerIBL.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 【关键】Clamp
-    samplerIBL.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 【关键】Clamp
+    samplerIBL.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR; // 蹇呴』鏄嚎鎬?
+    samplerIBL.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 銆愬叧閿€慍lamp
+    samplerIBL.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 銆愬叧閿€慍lamp
     samplerIBL.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     samplerIBL.MipLODBias = 0;
     samplerIBL.MaxAnisotropy = 16;
@@ -576,7 +573,7 @@ void DXRender::InitRootSignature()
     samplerIBL.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerIBL.MinLOD = 0.0f;
     samplerIBL.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerIBL.ShaderRegister = 3; // 绑定到 s3
+    samplerIBL.ShaderRegister = 3; // 缁戝畾鍒?s3
     samplerIBL.RegisterSpace = 0;
     samplerIBL.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     rootSigBuilder.AddStaticSampler(samplerIBL);
@@ -629,7 +626,7 @@ void DXRender::InitDeferredLightRootSignature()
     samplerPointClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerPointClamp.MinLOD = 0.0f;
     samplerPointClamp.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerPointClamp.ShaderRegister = 0; // 【关键】必须是 s0 匹配 shader
+    samplerPointClamp.ShaderRegister = 0; // 銆愬叧閿€戝繀椤绘槸 s0 鍖归厤 shader
     samplerPointClamp.RegisterSpace = 0;
     samplerPointClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -645,7 +642,7 @@ void DXRender::InitDeferredLightRootSignature()
     samplerShadow.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerShadow.MinLOD = 0.0f;
     samplerShadow.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerShadow.ShaderRegister = 1; // 【关键】必须是 s1 匹配 shader
+    samplerShadow.ShaderRegister = 1; // 銆愬叧閿€戝繀椤绘槸 s1 鍖归厤 shader
     samplerShadow.RegisterSpace = 0;
     samplerShadow.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -656,12 +653,12 @@ void DXRender::InitDeferredLightRootSignature()
     samplerLinear.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; 
     samplerLinear.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     samplerLinear.MipLODBias = 0;
-    samplerLinear.MaxAnisotropy = 0; // 【关键】如果 Filter 不是 ANISOTROPIC，这里必须为 0，否则 Build 会报错！
+    samplerLinear.MaxAnisotropy = 0; // 銆愬叧閿€戝鏋?Filter 涓嶆槸 ANISOTROPIC锛岃繖閲屽繀椤讳负 0锛屽惁鍒?Build 浼氭姤閿欙紒
     samplerLinear.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
     samplerLinear.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     samplerLinear.MinLOD = 0.0f;
     samplerLinear.MaxLOD = D3D12_FLOAT32_MAX;
-    samplerLinear.ShaderRegister = 2; // 【关键】必须是 s2 匹配 shader
+    samplerLinear.ShaderRegister = 2; // 銆愬叧閿€戝繀椤绘槸 s2 鍖归厤 shader
     samplerLinear.RegisterSpace = 0;
     samplerLinear.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -717,44 +714,6 @@ void DXRender::InitComputeRootSignature()
         throw std::runtime_error("Failed to create Compute PSO");
     }
 }
-
-void DXRender::InitBasePass()
-{
-    // root signature
-
-	// PSO
-
-    auto VS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"BasePassVS", L"BasePass.hlsl", "VSMain", "vs_5_0"
-    )->GetBytecode();
-    auto PS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"BasePassPS", L"BasePass.hlsl", "PSMain", "ps_5_0"
-    )->GetBytecode();
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
-    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
-    psoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
-    psoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    CD3DX12_DEPTH_STENCIL_DESC depthDesc(D3D12_DEFAULT);
-    depthDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-    depthDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    psoDesc.DepthStencilState = depthDesc;
-
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-    psoDesc.NumRenderTargets = 3;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    psoDesc.RTVFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    psoDesc.SampleDesc.Count = 1;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_bassPassPSO)));
-
-}
-
 void DXRender::ComputeCubemap()
 {
 	CommandList->SetPipelineState(ComputePipelineState.Get());
@@ -765,13 +724,13 @@ void DXRender::ComputeCubemap()
     CommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 	m_EnvCubeMap->TransitionTo(CommandList.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	// 设置描述符堆
+	// 璁剧疆鎻忚堪绗﹀爢
 	//CommandList->SetComputeRootDescriptorTable(0, m_HDRSkyTexture->GetSRV_G());
     m_HDRSkyTexture->BindSRV_Compute(CommandList.Get(), 0);
 	// CommandList->SetComputeRootDescriptorTable(1, m_EnvCubeMap->GetUAV_G());
     m_EnvCubeMap->BindUAV_Compute(CommandList.Get(), 1);
 
-	CommandList->Dispatch(1024 / 32, 1024 / 32, 6); // 每个线程组处理16x16像素
+	CommandList->Dispatch(1024 / 32, 1024 / 32, 6); // 姣忎釜绾跨▼缁勫鐞?6x16鍍忕礌
 
 	m_EnvCubeMap->TransitionTo(CommandList.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     // ExecuteCommandAndWaitForComplete();
@@ -807,7 +766,7 @@ void DXRender::InitIrradianceMapCompute()
         DXGI_FORMAT_R16G16B16A16_FLOAT,
         TextureViewFlags::SRV | TextureViewFlags::UAV
     );
-    cubeMipDesc.Width = 128; // 起始大小
+    cubeMipDesc.Width = 128; // 璧峰澶у皬
     cubeMipDesc.Height = 128;
     cubeMipDesc.MipLevels = 5; // 128, 64, 32, 16, 8
     cubeMipDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -1028,7 +987,7 @@ void DXRender::CompileShader()
 
 void DXRender::InitInputLayout()
 {
-    // 输入布局描述
+    // 杈撳叆甯冨眬鎻忚堪
     D3D12_INPUT_ELEMENT_DESC inputLayout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1067,8 +1026,8 @@ void DXRender::InitPSO()
 
 void DXRender::InitMaterial()
 {
-	// 2025.12.04 不再使用TestInputLayout，使用Common.h中的StandardVertexInputLayout 对应的Vertex结构体：StandardVertex
-    // 输入布局描述
+	// 2025.12.04 涓嶅啀浣跨敤TestInputLayout锛屼娇鐢–ommon.h涓殑StandardVertexInputLayout 瀵瑰簲鐨刅ertex缁撴瀯浣擄細StandardVertex
+    // 杈撳叆甯冨眬鎻忚堪
     //D3D12_INPUT_ELEMENT_DESC TestInputLayout[] =
     //{
     //    { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1162,7 +1121,7 @@ void DXRender::Draw()
     /* old version*/
     /*
 
-    // Pass 执行函数表（顺序与 EPassIndex 对应）
+    // Pass 鎵ц鍑芥暟琛紙椤哄簭涓?EPassIndex 瀵瑰簲锛?
     std::function<void(ID3D12GraphicsCommandList*)> passExecs[PASS_COUNT] = {
         ZPrePass.Execute,
         ShadowPass.Execute,
@@ -1172,7 +1131,7 @@ void DXRender::Draw()
     };
     if (bEnableMultiThreadRecord)
     {
-        // 多线程录制：每个 Pass 在自己的线程里 Reset/Execute/Close
+        // 澶氱嚎绋嬪綍鍒讹細姣忎釜 Pass 鍦ㄨ嚜宸辩殑绾跨▼閲?Reset/Execute/Close
         std::future<ID3D12GraphicsCommandList*> futures[PASS_COUNT];
         for (int i = 0; i < PASS_COUNT; ++i)
         {
@@ -1188,7 +1147,7 @@ void DXRender::Draw()
                     return cl;
                 });
         }
-        // 按顺序收集并提交
+        // 鎸夐『搴忔敹闆嗗苟鎻愪氦
         ID3D12CommandList* submitList[PASS_COUNT];
         for (int i = 0; i < PASS_COUNT; ++i)
         {
@@ -1198,7 +1157,7 @@ void DXRender::Draw()
     }
     else
     {
-        // 单线程路径：全部录到主 CmdList
+        // 鍗曠嚎绋嬭矾寰勶細鍏ㄩ儴褰曞埌涓?CmdList
         for (int i = 0; i < PASS_COUNT; ++i)
         {
             passExecs[i](CommandList.Get());
@@ -1206,7 +1165,7 @@ void DXRender::Draw()
     }
     */
 
-    // 录制命令
+    // 褰曞埗鍛戒护
     m_PassManager.ExecuteAllPasses(CommandList.Get());
 
     auto recordEnd = std::chrono::high_resolution_clock::now();
@@ -1225,19 +1184,19 @@ void DXRender::Draw()
 
     ImGui::Render();
     
-    // ImGui 渲染到当前 RT（MT 模式下主 CL 还没绑 RTV，这里显式绑一次）
+    // ImGui 娓叉煋鍒板綋鍓?RT锛圡T 妯″紡涓嬩富 CL 杩樻病缁?RTV锛岃繖閲屾樉寮忕粦涓€娆★級
     {
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
         rtvHandle.ptr += CurrentFrameIdx * RtvDescriptorSize;
         CommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
     }
-    // 切换到 ImGui 的 descriptor heap 并渲染
+    // 鍒囨崲鍒?ImGui 鐨?descriptor heap 骞舵覆鏌?
     ID3D12DescriptorHeap* imguiHeaps[] = { ImguiSrvHeap.Get()};
     CommandList->SetDescriptorHeaps(1, imguiHeaps);
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), CommandList.Get());
     
-    // --- 一帧结束 ---
-    // 转换当前这个rt的状态到present
+    // --- 涓€甯х粨鏉?---
+    // 杞崲褰撳墠杩欎釜rt鐨勭姸鎬佸埌present
     CD3DX12_RESOURCE_BARRIER Barrier_RT2P = CD3DX12_RESOURCE_BARRIER::Transition(
         RenderTargets[CurrentFrameIdx].Get(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -1292,70 +1251,17 @@ DXRender::~DXRender()
     }
 }
 
-void DXRender::InitShadowMap()
+void DXRender::InitPasses_new()
 {
 
-    m_ShadowMap = std::make_shared<Texture>("ShadowMap");
-    // 创建 ShadowMap (DSV + SRV)
-    m_ShadowMap->Create(
-        CommandList.Get(),
-        TextureDesc::CreateDepth(ShadowMapSize, ShadowMapSize, true) //SRV (给 MainPass 采样)
-    );
-
-    // 初始化视口 (Shadow Pass 专用)
-    m_ShadowViewport = { 0.0f, 0.0f, (float)ShadowMapSize, (float)ShadowMapSize, 0.0f, 1.0f };
-    m_ShadowScissorRect = { 0, 0, (LONG)ShadowMapSize, (LONG)ShadowMapSize };
-
-}
-
-void DXRender::InitShadowPSO()
-{
-	auto ShadowVS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"ShadowVS", L"ShadowMapping.hlsl", "VSMain", "vs_5_0"
-    )->GetBytecode();
-
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
-    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
-	psoDesc.VS = { reinterpret_cast<BYTE*>(ShadowVS->GetBufferPointer()), ShadowVS->GetBufferSize() };
-    psoDesc.PS = { nullptr, 0 };
-
-    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
-	rasterizerDesc.DepthBias = 100;
-    rasterizerDesc.DepthBiasClamp = 0.0f;
-    rasterizerDesc.SlopeScaledDepthBias = 1.0f;
-	psoDesc.RasterizerState = rasterizerDesc;
-
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; // 必须匹配 InitShadowMap 里的 dsvDesc
-    psoDesc.NumRenderTargets = 0; // 我们不输颜色
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.SampleDesc.Count = 1;
-
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&ShadowPSO)));
-    if (ShadowPSO == nullptr) {
-        MessageBox(NULL, L"ShadowPSO Create Failed!", L"Error", MB_OK);
-    };
-}
-
-void DXRender::InitPasses()
-{
-	auto device = Device::GetInstance().GetD3DDevice();
-
-    auto& ZPrePass = m_PassManager.AddPass("ZPrepass");
-    ZPrePass.PSO = m_zPrePassPSO;
-    ZPrePass.RootSig = RootSignature; // 复用主渲染的 RootSig
-    ZPrePass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-    ZPrePass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+    IRenderPass* zPrePass = m_PassManager.AddPass<ZPrePass>();
+	zPrePass->SetRootSignature(RootSignature.Get());
+	zPrePass->SetPipelineState(m_zPrePassPSO.Get());
+    zPrePass->AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    zPrePass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
-
             auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
-            // ZPrepass implementation (similar to ShadowPass but for main camera)
+            // ZPrepass implementation
             ID3D12DescriptorHeap* descriptorHeaps[] = {
                 DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
             };
@@ -1377,7 +1283,7 @@ void DXRender::InitPasses()
                 auto MeshElement = MeshList[i];
                 if (!MeshElement->IsVisible()) continue;
 
-                // 更新常量缓冲区
+                // 鏇存柊甯搁噺缂撳啿鍖?
                 auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
                 auto M_Matrix = MeshElement->GetWorldMatrix();
                 ObjectConstants objConstants;
@@ -1387,7 +1293,6 @@ void DXRender::InitPasses()
                 memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
 
                 // cbv
-                // CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
                 CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
 
                 CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1399,92 +1304,71 @@ void DXRender::InitPasses()
                 CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
 
             }
-        };
+		};
 
-
-    auto& ShadowPass = m_PassManager.AddPass("ShadowPass");
-	ShadowPass.RootSig = RootSignature.Get();
-    ShadowPass.PSO = ShadowPSO;
-    ShadowPass.AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-    ShadowPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
-    {
-		auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
-        // Shadow Pass(生成阴影图)
+	IRenderPass* shadowPass = m_PassManager.AddPass<ShadowPass>();
+	shadowPass->SetRootSignature(RootSignature.Get());
+    shadowPass->AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    shadowPass->Execute = [this](ID3D12GraphicsCommandList* CommandList){
+       	auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
+        // Shadow Pass(鐢熸垚闃村奖鍥?
         ID3D12DescriptorHeap* ShadowDescriptorHeaps[] = { 
             DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
         };
         CommandList->SetDescriptorHeaps(_countof(ShadowDescriptorHeaps), ShadowDescriptorHeaps);
-
-		m_ShadowMap->ClearDepth(CommandList, 1.0f, 0);
-		D3D12_CPU_DESCRIPTOR_HANDLE dsvhandle = m_ShadowMap->GetDSV();
-
+       	m_ShadowMap->ClearDepth(CommandList, 1.0f, 0);
+       	D3D12_CPU_DESCRIPTOR_HANDLE dsvhandle = m_ShadowMap->GetDSV();
         CommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvhandle);
-
         CommandList->RSSetViewports(1, &m_ShadowViewport);
         CommandList->RSSetScissorRects(1, &m_ShadowScissorRect);
-
-        // Shadow Pass 绘制场景到深度图
+        // Shadow Pass 缁樺埗鍦烘櫙鍒版繁搴﹀浘
         DirectX::XMVECTOR lightDirVec = XMLoadFloat3(&LightConstantInstance.LightDirection);
         lightDirVec = DirectX::XMVector3Normalize(lightDirVec);
-
         DirectX::XMVECTOR lightPos = DirectX::XMVectorScale(lightDirVec, 20.0f);
-        DirectX::XMVECTOR targetPos = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f); // 看向原点
+        DirectX::XMVECTOR targetPos = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f); // 鐪嬪悜鍘熺偣
         DirectX::XMVECTOR up = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
         DirectX::XMVECTOR forward = DirectX::XMVector3Normalize(
             DirectX::XMVectorSubtract(targetPos, lightPos)
         );
         float dot = fabsf(DirectX::XMVectorGetX(DirectX::XMVector3Dot(forward, up)));
-
         if (dot > 0.99f)
         {
-            // 这种情况下，强制把 Z 轴当作 Up 向量
+            // 杩欑鎯呭喌涓嬶紝寮哄埗鎶?Z 杞村綋浣?Up 鍚戦噺
             up = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         }
-
         DirectX::XMMATRIX lightView = DirectX::XMMatrixLookAtLH(lightPos, targetPos, up);
-
-        // 正交投影范围 (覆盖你的场景大小)
-        // 比如场景是 20x20 米，这里就设宽一点
-        DirectX::XMMATRIX lightProj = DirectX::XMMatrixOrthographicLH(20.0f, 20.0f, 1.0f, 50.0f); // 宽, 高, 近, 远
+        // 姝ｄ氦鎶曞奖鑼冨洿 (瑕嗙洊浣犵殑鍦烘櫙澶у皬)
+        // 姣斿鍦烘櫙鏄?20x20 绫筹紝杩欓噷灏辫瀹戒竴鐐?
+        DirectX::XMMATRIX lightProj = DirectX::XMMatrixOrthographicLH(20.0f, 20.0f, 1.0f, 50.0f); // 瀹? 楂? 杩? 杩?
         DirectX::XMMATRIX lightViewProj = lightView * lightProj;
-
         CommandList->SetGraphicsRootSignature(RootSignature.Get());
         auto MainCameraPos = MainCamera.GetPosition();
         LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
-
-        // 将数据拷贝到 Map 好的内存中
+        // 灏嗘暟鎹嫹璐濆埌 Map 濂界殑鍐呭瓨涓?
         if (LightConstantBufferMappedData)
         {
             memcpy(LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
         }
-        // 替换为CBV
+        // 鏇挎崲涓篊BV
         //CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
-		CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
-
-
+        CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
         // XMStoreFloat4x4(&shadowConstants.WorldViewProj, XMMatrixTranspose(MVP));
         XMStoreFloat4x4(&LightConstantInstance.LightViewProj, XMMatrixTranspose(lightViewProj));
-
         const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
-
         for (int i = 0; i < MeshList.size(); ++i)
         {
-
             auto MeshElement = MeshList[i];
             if (!MeshElement->IsVisible()) continue;
-            // 计算 MVP = World * LightView * LightProj
-            // 更新常量缓冲区
+            // 璁＄畻 MVP = World * LightView * LightProj
+            // 鏇存柊甯搁噺缂撳啿鍖?
             auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
             auto M_Matrix = MeshElement->GetWorldMatrix();
             ObjectConstants objConstants;
             DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
             DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
-
             memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-			CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
-
-
-            // 绘制
+        	CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+            // 缁樺埗
             CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             auto VBView = MeshElement->GetVertexBufferView();
             CommandList->IASetVertexBuffers(0, 1, &VBView);
@@ -1492,32 +1376,36 @@ void DXRender::InitPasses()
             CommandList->IASetIndexBuffer(&IBView);
             CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
         }
-	};
+    };
 
-    auto& ShadowMaskPass = m_PassManager.AddPass("ShadowMaskPass");
-    ShadowMaskPass.PSO = m_shadowMaskPassPSO;
-    ShadowMaskPass.RootSig = RootSignature;
-    ShadowMaskPass.AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    ShadowMaskPass.Execute = [&](ID3D12GraphicsCommandList* CommandList)
+	IRenderPass* shadowMaskPass = m_PassManager.AddPass<ShadowMaskPass>();
+    shadowMaskPass->SetRootSignature(RootSignature.Get());
+    shadowMaskPass->AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	shadowMaskPass->AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_READ);
+    shadowMaskPass->AddDependency(m_ShadowMask.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    shadowMaskPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
 
             auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
 
             m_ShadowMask->Clear(CommandList);
-            // m_SceneDepth
-            m_ShadowMask->SetAsRenderTarget(CommandList, m_SceneDepth.get());
+            // 鎵嬪姩缁戝畾 RTV + DSV锛屼笉浣跨敤 SetAsRenderTarget 鍥犱负瀹冧細寮哄埗灏?depth 杞负 DEPTH_WRITE
+            // ShadowMaskPass 鐨?PSO 浣跨敤 DepthWriteMask=ZERO锛屾墍浠?DEPTH_READ 鏄纭殑鐘舵€?
+            D3D12_CPU_DESCRIPTOR_HANDLE shadowMaskRtv = m_ShadowMask->GetRTV();
+            D3D12_CPU_DESCRIPTOR_HANDLE sceneDepthDsv = m_SceneDepth->GetDSV();
+            CommandList->OMSetRenderTargets(1, &shadowMaskRtv, FALSE, &sceneDepthDsv);
 
             CommandList->RSSetViewports(1, &ScreenViewport);
             CommandList->RSSetScissorRects(1, &ScissorRect);
 
-            // 绑定描述符堆
+            // 缁戝畾鎻忚堪绗﹀爢
             ID3D12DescriptorHeap* descriptorHeaps[] = {
                 DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
             };
             CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
             CommandList->SetGraphicsRootSignature(RootSignature.Get());
-            CommandList->SetGraphicsRootDescriptorTable(3, m_ShadowMap->GetSRV_G()); // 绑定 shadow map SRV
+            CommandList->SetGraphicsRootDescriptorTable(3, m_ShadowMap->GetSRV_G()); // 缁戝畾 shadow map SRV
 
             //Light Constants
             auto MainCameraPos = MainCamera.GetPosition();
@@ -1537,7 +1425,7 @@ void DXRender::InitPasses()
                 auto MeshElement = MeshList[i];
                 if (!MeshElement->IsVisible()) continue;
                 {
-                    // 更新常量缓冲区
+                    // 鏇存柊甯搁噺缂撳啿鍖?
                     auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
                     auto M_Matrix = MeshElement->GetWorldMatrix();
                     ObjectConstants objConstants;
@@ -1548,7 +1436,7 @@ void DXRender::InitPasses()
                     memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
                 }
 
-                // 绑定 CBV
+                // 缁戝畾 CBV
                 CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
 
                 CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1563,16 +1451,14 @@ void DXRender::InitPasses()
         };
 
 
-    //Basepass
-    auto& BasePass = m_PassManager.AddPass("BasePass");
-	BasePass.PSO = m_bassPassPSO;
-	BasePass.RootSig = RootSignature;
-	BasePass.AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	BasePass.AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	BasePass.AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-    BasePass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	IRenderPass* basePass = m_PassManager.AddPass<BasePass>();
+	basePass->SetRootSignature(RootSignature.Get());
+    basePass->AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    basePass->AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    basePass->AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    basePass->AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-    BasePass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+    basePass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
             auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
             D3D12_CPU_DESCRIPTOR_HANDLE rtvs[] = {
@@ -1580,8 +1466,8 @@ void DXRender::InitPasses()
                 m_GBuffer1->GetRTV(),
                 m_GBuffer2->GetRTV()
             };
-			auto dsv = m_SceneDepth->GetDSV();
-			m_GBuffer0->Clear(CommandList);
+            auto dsv = m_SceneDepth->GetDSV();
+            m_GBuffer0->Clear(CommandList);
             m_GBuffer1->Clear(CommandList);
             m_GBuffer2->Clear(CommandList);
 
@@ -1614,8 +1500,8 @@ void DXRender::InitPasses()
                     ObjectConstants objConstants;
                     DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
                     DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
-					// 更新帧资源的constantbuffer+idx偏移的数据
-                    memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));              
+                    // 鏇存柊甯ц祫婧愮殑constantbuffer+idx鍋忕Щ鐨勬暟鎹?
+                    memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
                     CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
 
                     auto MaterialName = MeshElement->GetMaterialName();
@@ -1661,23 +1547,20 @@ void DXRender::InitPasses()
 
                 CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
             }
+		};
 
-        };
-
-	auto& DeferredLightPass = m_PassManager.AddPass("DeferredLightPass");
-	DeferredLightPass.PSO = m_deferredLightPassPSO;
-	DeferredLightPass.RootSig = m_DeferredRootSignature.Get();
-    DeferredLightPass.AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	IRenderPass* deferredLightPass = m_PassManager.AddPass<DeferredLightPass>();
+    deferredLightPass->AddDependency(m_GBuffer0.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_GBuffer1.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_GBuffer2.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     // GBUFFER3 TO DO
-    DeferredLightPass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_ShadowMask.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_IrradianceMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_PrefilterMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.AddDependency(m_BrdfLUTTexture.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    DeferredLightPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
+    deferredLightPass->AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_ShadowMask.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_IrradianceMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_PrefilterMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->AddDependency(m_BrdfLUTTexture.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    deferredLightPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
             auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
 
@@ -1686,25 +1569,25 @@ void DXRender::InitPasses()
                 D3D12_RESOURCE_STATE_PRESENT,
                 D3D12_RESOURCE_STATE_RENDER_TARGET
             );
+
+            //CommandList->IASetVertexBuffers(0, 0, nullptr);
+            //CommandList->IASetIndexBuffer(nullptr);
+
             CommandList->ResourceBarrier(1, &Barrier_P2RT);
             D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
             CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
-
-            const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
+            const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 娣辫摑鑹茶儗鏅?
             CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
-
             CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, nullptr);
-            CommandList->RSSetViewports(1, &ScreenViewport);
-            CommandList->RSSetScissorRects(1, &ScissorRect);
 
-            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            CommandList->DrawInstanced(3, 1, 0, 0);
-
+            // 璁剧疆鎻忚堪绗﹀爢锛堝繀椤诲湪缁戝畾 SRV 涔嬪墠锛?
             ID3D12DescriptorHeap* descriptorHeaps[] = {
                 DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
             };
             CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
+            CommandList->RSSetViewports(1, &ScreenViewport);
+            CommandList->RSSetScissorRects(1, &ScissorRect);
             {
                 //Light Constants
                 auto MainCameraPos = MainCamera.GetPosition();
@@ -1713,184 +1596,40 @@ void DXRender::InitPasses()
                 DirectX::XMVECTOR det;
                 DirectX::XMMATRIX InvViewProj = XMMatrixInverse(&det, ViewProj);
                 XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, XMMatrixTranspose(InvViewProj));
-
                 if (CurrFrameResource.LightConstantBufferMappedData)
                 {
                     memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
                 }
                 CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
-
             }
             {
                 m_GBuffer0->BindSRV_Graphics(CommandList, 1);
                 m_GBuffer1->BindSRV_Graphics(CommandList, 2);
                 m_GBuffer2->BindSRV_Graphics(CommandList, 3);
-
-
                 m_ShadowMask->BindSRV_Graphics(CommandList, 5);
                 m_IrradianceMap->BindSRV_Graphics(CommandList, 6);
                 m_PrefilterMap->BindSRV_Graphics(CommandList, 7);
                 m_BrdfLUTTexture->BindSRV_Graphics(CommandList, 8);
                 m_SceneDepth->BindSRV_Graphics(CommandList, 9);
             }
-
-
-
-
+            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             CommandList->DrawInstanced(3, 1, 0, 0);
 
         };
 
-
-
-	//auto& MainPass = m_PassManager.AddPass("MainPass");
-    auto MainPass = RenderPass();
-
-	MainPass.PSO = PipelineState; // 之前创建的主渲染 PSO
-	MainPass.RootSig = RootSignature;
-	MainPass.AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	MainPass.AddDependency(m_ShadowMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    MainPass.AddDependency(m_ShadowMask.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    MainPass.AddDependency(m_IrradianceMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    MainPass.AddDependency(m_PrefilterMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    MainPass.AddDependency(m_BrdfLUTTexture.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    MainPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
-    {
-        auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
-
-        CD3DX12_RESOURCE_BARRIER Barrier_P2RT = CD3DX12_RESOURCE_BARRIER::Transition(
-            RenderTargets[CurrentFrameIdx].Get(),
-            D3D12_RESOURCE_STATE_PRESENT,
-            D3D12_RESOURCE_STATE_RENDER_TARGET
-        );
-        CommandList->ResourceBarrier(1, &Barrier_P2RT);
-
-        D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
-        CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
-
-        const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f }; // 深蓝色背景
-        CommandList->ClearRenderTargetView(CPU_RTV_Handle, clearColor, 0, nullptr);
-		auto dsvhandle = m_SceneDepth->GetDSV();
-        CommandList->OMSetRenderTargets(1, &CPU_RTV_Handle, FALSE, &dsvhandle);
-
-
-        CommandList->RSSetViewports(1, &ScreenViewport);
-        CommandList->RSSetScissorRects(1, &ScissorRect);
-
-        CommandList->SetGraphicsRootSignature(RootSignature.Get());
-
-        // 绑定描述符堆
-        ID3D12DescriptorHeap* descriptorHeaps[] = { 
-            DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
-        };
-        CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-        // 设置主渲染 PSO
-        CommandList->SetPipelineState(PipelineState.Get());
-
-        //Light Constants
-        auto MainCameraPos = MainCamera.GetPosition();
-        LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
-
-        // 将数据拷贝到 Map 好的内存中
-        if (CurrFrameResource.LightConstantBufferMappedData)
+	IRenderPass* skyPass = m_PassManager.AddPass<SkyboxPass>();
+	skyPass->SetRootSignature(RootSignature.Get());
+    skyPass->AddDependency(m_EnvCubeMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    skyPass->AddDependency(m_SceneDepth.get(), D3D12_RESOURCE_STATE_DEPTH_READ);
+    skyPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
         {
-            memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
-        }
-        // CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
-        CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
-
-
-		//// shadow map SRV
-  //      CommandList->SetGraphicsRootDescriptorTable(3, ShadowSRVHandle.GpuHandle);
-  //      // shadow mask SRV
-		//CommandList->SetGraphicsRootDescriptorTable(4, ShadowMaskSRVHandle.GpuHandle);
-		m_ShadowMap->BindSRV_Graphics(CommandList, 3);
-		m_ShadowMask->BindSRV_Graphics(CommandList, 4);
-		m_IrradianceMap->BindSRV_Graphics(CommandList, 5);
-		m_PrefilterMap->BindSRV_Graphics(CommandList, 6);
-		m_BrdfLUTTexture->BindSRV_Graphics(CommandList, 7);
-        const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
-        const UINT MatConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
-        for (int i = 0; i < MeshList.size(); ++i)
-        {
-
-            auto MeshElement = MeshList[i];
-            if (!MeshElement->IsVisible()) continue;
-            {
-                // 更新常量缓冲区
-                auto MVPMatrix = MeshElement->CalMVPMatrix(MainCamera.CalViewProjMatrix());
-                auto M_Matrix = MeshElement->GetWorldMatrix();
-                ObjectConstants objConstants;
-                DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
-                DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
-                // MeshElement->UpdateObjectConstantBuffer(objConstants);
-                memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-                // 绑定 CBV
-                // CommandList->SetGraphicsRootDescriptorTable(0, MeshElement->GetCbvGpuHandle());
-                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
-
-                auto MaterialName = MeshElement->GetMaterialName();
-                Material* MaterialPtr = MaterialManager::GetInstance().GetMaterialByName(MaterialName);
-
-                MaterialConstants matConstants;
-                if (MaterialPtr)
-                {
-                    //MaterialPtr->Bind(CommandList);
-                    //std::cout << "Binding Material: " << MaterialName << std::endl;
-					memcpy(CurrFrameResource.MaterialConstantBufferMappedData + i * MatConstantBufferSize, &MaterialPtr->GetConstantData(), sizeof(matConstants));
-					CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.MaterialConstantBuffer->GetGPUVirtualAddress() + i * MatConstantBufferSize);
-                    if (MaterialPtr->HasAlbedoTexture())
-                    {
-						MaterialPtr->GetAlbedoTexture()->BindSRV_Graphics(CommandList, 8);
-                    }
-                    else
-                    {
-                        m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
-                    }
-                    if (MaterialPtr->HasNormalTexture())
-                    {
-                        MaterialPtr->GetNormalTexture()->BindSRV_Graphics(CommandList, 9);
-                    }
-                    if (MaterialPtr->HasMetallicTexture())
-                    {
-						MaterialPtr->GetMetallicTexture()->BindSRV_Graphics(CommandList, 10);
-                    }
-
-                }
-                else
-                {
-                    m_DefaultWhiteTexture->BindSRV_Graphics(CommandList, 8);
-                }
-            }
-
-           
-            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            auto VertexBufferView = MeshElement->GetVertexBufferView();
-            CommandList->IASetVertexBuffers(0, 1, &VertexBufferView);
-            auto IndexBufferView = MeshElement->GetIndexBufferView();
-            CommandList->IASetIndexBuffer(&IndexBufferView);
-
-            CommandList->DrawIndexedInstanced(MeshElement->GetIndexCount(), 1, 0, 0, 0);
-        }
-        // MainPass 不执行，等 ImGui 渲染完后统一执行
-	};
-    
-
-	auto& SkyPass = m_PassManager.AddPass("SkyPass");
-    SkyPass.PSO = m_skyPassPSO;
-	SkyPass.RootSig = RootSignature;
-	SkyPass.AddDependency(m_EnvCubeMap.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    SkyPass.Execute = [this](ID3D12GraphicsCommandList* CommandList)
-        {
-
             auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
 
             D3D12_CPU_DESCRIPTOR_HANDLE CPU_RTV_Handle = RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
             CPU_RTV_Handle.ptr += CurrentFrameIdx * RtvDescriptorSize;
 
-			D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = m_SceneDepth->GetDSV();
+            D3D12_CPU_DESCRIPTOR_HANDLE CPU_DSV_Handle = m_SceneDepth->GetDSV();
 
             ID3D12DescriptorHeap* descriptorHeaps[] = {
                 DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
@@ -1922,7 +1661,7 @@ void DXRender::InitPasses()
             DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
             DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
 
-            // Skybox 用大 buffer 最后一个槽位
+            // Skybox 鐢ㄥぇ buffer 鏈€鍚庝竴涓Ы浣?
             // SkyboxMesh->UpdateObjectConstantBuffer(objConstants); // OLD
             const int SkyboxCBIndex = (int)MeshList.size();
             const UINT ObjCBSize = (sizeof(ObjectConstants) + 255) & ~255;
@@ -1933,159 +1672,74 @@ void DXRender::InitPasses()
             CommandList->SetGraphicsRootConstantBufferView(0,
                 CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + SkyboxCBIndex * ObjCBSize);
 
-			auto VBView = SkyboxMesh->GetVertexBufferView();
-			auto IBView = SkyboxMesh->GetIndexBufferView();
+            auto VBView = SkyboxMesh->GetVertexBufferView();
+            auto IBView = SkyboxMesh->GetIndexBufferView();
             // CommandList->SetGraphicsRootDescriptorTable(0, SkyboxMesh->GetCbvGpuHandle());
             CommandList->IASetIndexBuffer(&IBView);
-			CommandList->IASetVertexBuffers(0, 1, &VBView);
+            CommandList->IASetVertexBuffers(0, 1, &VBView);
             CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			CommandList->DrawIndexedInstanced(SkyboxMesh->GetIndexCount(), 1, 0, 0, 0);
-
-
+            CommandList->DrawIndexedInstanced(SkyboxMesh->GetIndexCount(), 1, 0, 0, 0);
         };
-    
-    
 
-    
-
-
-
+    m_PassManager.InitAllPasses(Device::GetInstance().GetD3DDevice());
 }
 
-void DXRender::InitShadowMaskTexture()
+void DXRender::InitTextures()
 {
+    //depth
+    //m_SceneDepth = std::make_shared<Texture>("SceneDepth");
+    //m_SceneDepth->Create(
+    //    CommandList.Get(),
+    //    TextureDesc::CreateDepth(Width, Height, true)
+    //);
+
+    // shadow
+    m_ShadowMap = std::make_shared<Texture>("ShadowMap");
+    // 鍒涘缓 ShadowMap (DSV + SRV)
+    m_ShadowMap->Create(
+        CommandList.Get(),
+        TextureDesc::CreateDepth(ShadowMapSize, ShadowMapSize, true) //SRV (缁?MainPass 閲囨牱)
+    );
+
+    // 鍒濆鍖栬鍙?(Shadow Pass 涓撶敤)
+    m_ShadowViewport = { 0.0f, 0.0f, (float)ShadowMapSize, (float)ShadowMapSize, 0.0f, 1.0f };
+    m_ShadowScissorRect = { 0, 0, (LONG)ShadowMapSize, (LONG)ShadowMapSize };
+
     m_ShadowMask = std::make_shared<Texture>("ShadowMask");
-    // 创建 ShadowMask (RTV + SRV, LDR格式)
+    // 鍒涘缓 ShadowMask (RTV + SRV, LDR鏍煎紡)
     m_ShadowMask->Create(
         CommandList.Get(),
         TextureDesc::Create2D(Width, Height, DXGI_FORMAT_R8G8B8A8_UNORM, TextureViewFlags::RTV | TextureViewFlags::SRV)
     );
-}
 
-void DXRender::InitShadowMaskPSO()
-{
-    auto ShadowMaskVS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"ShadowMaskVS", L"ShadowMaskShader.hlsl", "VSMain", "vs_5_0"
-    )->GetBytecode();
-    auto ShadowMaskPS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"ShadowMaskPS", L"ShadowMaskShader.hlsl", "PSMain", "ps_5_0"
-	)->GetBytecode();
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
-    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
-    psoDesc.VS = { reinterpret_cast<BYTE*>(ShadowMaskVS->GetBufferPointer()), ShadowMaskVS->GetBufferSize() };
-    psoDesc.PS = { reinterpret_cast<BYTE*>(ShadowMaskPS->GetBufferPointer()), ShadowMaskPS->GetBufferSize() };
+    //GBUFFER
+    m_GBuffer0 = std::make_shared<Texture>("GBuffer0");
+    m_GBuffer1 = std::make_shared<Texture>("GBuffer1");
+    m_GBuffer2 = std::make_shared<Texture>("GBuffer2");
 
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    //PsoDesc.DepthStencilState.DepthEnable = TRUE;
-    // 1. 获取默认设置
-    CD3DX12_DEPTH_STENCIL_DESC depthDesc(D3D12_DEFAULT);
+    TextureDesc GBuffer0Desc;
+    GBuffer0Desc.Width = Width;
+    GBuffer0Desc.Height = Height;
+    GBuffer0Desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    GBuffer0Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+    m_GBuffer0->Create(CommandList.Get(), GBuffer0Desc);
 
-    // 2. 改为 "小于等于" (LESS_EQUAL)，这样相同深度的像素也能通过测试
-    depthDesc.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    TextureDesc GBuffer1Desc;
+    GBuffer1Desc.Width = Width;
+    GBuffer1Desc.Height = Height;
+    GBuffer1Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    GBuffer1Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+    m_GBuffer1->Create(CommandList.Get(), GBuffer1Desc);
 
-    // 3. 关闭深度写入 (MainPass 已经写过深度了，这里只读就行，优化性能)
-    depthDesc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-
-    psoDesc.DepthStencilState = depthDesc;
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.SampleDesc.Count = 1;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_shadowMaskPassPSO)));
+    TextureDesc GBuffer2Desc;
+    GBuffer2Desc.Width = Width;
+    GBuffer2Desc.Height = Height;
+    GBuffer2Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    GBuffer2Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
+    m_GBuffer2->Create(CommandList.Get(), GBuffer2Desc);
 
 }
-
-void DXRender::InitZPrepassPSO()
-{
-    auto VsByte = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"ZPrepassVS", L"ZPrepassShader.hlsl", "VSMain", "vs_5_0"
-	)->GetBytecode();
-    auto PsByte = DXShaderManager::GetInstance().CreateOrFindShader(
-		L"ZPrepassPS", L"ZPrepassShader.hlsl", "PSMain", "ps_5_0"
-	)->GetBytecode();
-
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-	psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
-    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
-	psoDesc.VS = { reinterpret_cast<BYTE*>(VsByte->GetBufferPointer()), VsByte->GetBufferSize() };
-	psoDesc.PS = { reinterpret_cast<BYTE*>(PsByte->GetBufferPointer()), PsByte->GetBufferSize() };
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
-    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT; // 必须匹配 InitDepthStencilBuffer 里的 dsvDesc
-    psoDesc.NumRenderTargets = 0; // 我们不输颜色
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.SampleDesc.Count = 1;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_zPrePassPSO)));
-}
-
-void DXRender::InitSkyPassPSO()
-{
-    auto SkyVS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"SkyVS", L"Skybox.hlsl", "VSMain", "vs_5_0"
-    )->GetBytecode();
-    auto SkyPS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"SkyPS", L"Skybox.hlsl", "PSMain", "ps_5_0"
-    )->GetBytecode();
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
-    psoDesc.pRootSignature = RootSignature.Get(); // 复用现在的 RootSig
-    psoDesc.VS = { reinterpret_cast<BYTE*>(SkyVS->GetBufferPointer()), SkyVS->GetBufferSize() };
-    psoDesc.PS = { reinterpret_cast<BYTE*>(SkyPS->GetBufferPointer()), SkyPS->GetBufferSize() };
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthEnable = TRUE;
-    psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-    psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.SampleDesc.Count = 1;
-	ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_skyPassPSO)));
-}
-
-void DXRender::InitDeferredLightPassPSO()
-{
-    auto VS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"DeferredLightVS", L"DeferredLightShader.hlsl", "VSMain", "vs_5_0"
-    )->GetBytecode();
-    auto PS = DXShaderManager::GetInstance().CreateOrFindShader(
-        L"DeferredLightPS", L"DeferredLightShader.hlsl", "PSMain", "ps_5_0"
-    )->GetBytecode();
-
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-
-    psoDesc.InputLayout = { nullptr, 0 };
-    psoDesc.pRootSignature = m_DeferredRootSignature.Get();
-    psoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
-    psoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthEnable = false;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.SampleDesc.Count = 1;
-    psoDesc.SampleMask = UINT_MAX;
-    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_deferredLightPassPSO)));
-}
-
-
 
 DXRender::DXRender()
 {
@@ -2099,13 +1753,13 @@ DescriptorAllocation DXRender::AllocateDescriptorHandle(unsigned int DescriptorS
     {
         throw std::runtime_error("Exceeded maximum descriptor heap size!");
 	}
-    // 计算 CPU 句柄 (用于创建资源)
+    // 璁＄畻 CPU 鍙ユ焺 (鐢ㄤ簬鍒涘缓璧勬簮)
     //CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(
     //    ConstantBufferViewHeap->GetCPUDescriptorHandleForHeapStart(),
     //    CurrentSrvHeapIndex,
     //    DescriptorSize);
 
-    //// 计算 GPU 句柄 (用于绑定 Shader)
+    //// 璁＄畻 GPU 鍙ユ焺 (鐢ㄤ簬缁戝畾 Shader)
     //CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(
     //    ConstantBufferViewHeap->GetGPUDescriptorHandleForHeapStart(),
     //    CurrentSrvHeapIndex,
@@ -2113,7 +1767,7 @@ DescriptorAllocation DXRender::AllocateDescriptorHandle(unsigned int DescriptorS
 
 	unsigned int RetIdx = CurrentSrvHeapIndex;
 
-    CurrentSrvHeapIndex++; // 指针后移
+    CurrentSrvHeapIndex++; // 鎸囬拡鍚庣Щ
 
     //return { cpuHandle, gpuHandle, RetIdx };
     return { 0, 0, RetIdx };
@@ -2154,7 +1808,7 @@ void FrameResource::Init(ID3D12Device* device, UINT maxObjectCount)
 {
 	device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&CmdAllocator));
 
-    // 每个 Pass 一套独立的 Allocator + CmdList（多线程录制用）
+    // 姣忎釜 Pass 涓€濂楃嫭绔嬬殑 Allocator + CmdList锛堝绾跨▼褰曞埗鐢級
     for (int i = 0; i < PASS_COUNT; ++i)
     {
         ThrowIfFailed(device->CreateCommandAllocator(
@@ -2163,21 +1817,21 @@ void FrameResource::Init(ID3D12Device* device, UINT maxObjectCount)
             0, D3D12_COMMAND_LIST_TYPE_DIRECT,
             PassCmdAllocators[i].Get(), nullptr,
             IID_PPV_ARGS(&PassCmdLists[i])));
-        // 创建出来是 open 状态，先 Close 等待 Draw 里再 Reset
+        // 鍒涘缓鍑烘潵鏄?open 鐘舵€侊紝鍏?Close 绛夊緟 Draw 閲屽啀 Reset
         PassCmdLists[i]->Close();
     }
 
     // Light Constant Buffer
     const UINT LightConstantBufferSize = (sizeof(LightConstants) + 255) & ~255;
 
-    // 创建上传堆的常量缓冲资源
+    // 鍒涘缓涓婁紶鍫嗙殑甯搁噺缂撳啿璧勬簮
     CD3DX12_HEAP_PROPERTIES LightHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(LightConstantBufferSize);
     ThrowIfFailed(device->CreateCommittedResource(&LightHeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
         IID_PPV_ARGS(&LightConstantBuffer)));
-    // 2) 映射得到 CPU 可写指针
+    // 2) 鏄犲皠寰楀埌 CPU 鍙啓鎸囬拡
     CD3DX12_RANGE ReadRange(0, 0);
     LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData));
 

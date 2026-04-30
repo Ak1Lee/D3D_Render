@@ -1,4 +1,4 @@
-#include "Texture.h"
+﻿#include "Texture.h"
 #include "render.h"
 
 //#define STB_IMAGE_IMPLEMENTATION
@@ -65,28 +65,28 @@ void Texture::SetAsRenderTarget(ID3D12GraphicsCommandList* CmdList, Texture* Dep
 
 void Texture::BindSRV_Graphics(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. 自动判断并切换状态
+	// 1. 鑷姩鍒ゆ柇骞跺垏鎹㈢姸鎬?
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	// 2. 绑定句柄
+	// 2. 缁戝畾鍙ユ焺
 	CmdList->SetGraphicsRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
 }
 
 void Texture::BindSRV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. 自动判断并切换状态
+	// 1. 鑷姩鍒ゆ柇骞跺垏鎹㈢姸鎬?
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	// 2. 绑定句柄
+	// 2. 缁戝畾鍙ユ焺
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, m_SRVHandle->GpuHandle);
 }
 
 void Texture::BindUAV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	// 1. 自动判断并切换状态
+	// 1. 鑷姩鍒ゆ柇骞跺垏鎹㈢姸鎬?
 	TransitionTo(CmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	// 2. 绑定句柄
+	// 2. 缁戝畾鍙ユ焺
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, GetUAV_G());
 }
 
@@ -167,7 +167,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	TexDesc.Height = Height;
 	TexDesc.DepthOrArraySize = ArraySize;
 	TexDesc.MipLevels = MipLevels;
-	TexDesc.Format = GetTypelessFormat(Format); // 【关键】资源本身要是 Typeless
+	TexDesc.Format = GetTypelessFormat(Format); // 銆愬叧閿€戣祫婧愭湰韬鏄?Typeless
 	TexDesc.SampleDesc.Count = 1;
 	TexDesc.SampleDesc.Quality = 0;
 	TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -178,14 +178,14 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	if (HasFlag(ViewFlags, TextureViewFlags::RTV))
 	{
 		optClear.Format = Format;
-		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // 默认为黑色
+		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // 榛樿涓洪粦鑹?
 		pClearValue = &optClear;
 	}
 	else if(HasFlag(ViewFlags, TextureViewFlags::DSV))
 	{
 		optClear.Format = GetDSVFormat(Format);
-		optClear.DepthStencil.Depth = m_ClearDepth;   // 默认为 1.0f
-		optClear.DepthStencil.Stencil = m_ClearStencil; // 默认为 0
+		optClear.DepthStencil.Depth = m_ClearDepth;   // 榛樿涓?1.0f
+		optClear.DepthStencil.Stencil = m_ClearStencil; // 榛樿涓?0
 		pClearValue = &optClear;
 	}
 	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
@@ -198,7 +198,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 		D3D12_HEAP_FLAG_NONE,
 		&TexDesc,
 		initialState,
-		pClearValue, // 如果不是 RT/DSV，这里必须是 nullptr
+		pClearValue, // 濡傛灉涓嶆槸 RT/DSV锛岃繖閲屽繀椤绘槸 nullptr
 		IID_PPV_ARGS(&Resource)
 	);
 
@@ -384,6 +384,9 @@ void Texture::CreateDSV(ID3D12Device* Device)
 
 void Texture::CreateResourceHeap(ID3D12Device* device, ID3D12GraphicsCommandList* CmdList, const void* InData,int PixelByteSize)
 {
+	// 璋冭瘯锛氭墦鍗版鍦ㄥ垱寤虹殑绾圭悊鍚嶇О鍜屽綋鍓嶇姸鎬?
+	OutputDebugStringA(("CreateResourceHeap: " + Name +
+		" CurrentState=" + std::to_string(CurrentState) + "\n").c_str());
 	
 	TexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	TexDesc.Width = Width;
@@ -396,13 +399,20 @@ void Texture::CreateResourceHeap(ID3D12Device* device, ID3D12GraphicsCommandList
 	TexDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 	CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
-	device->CreateCommittedResource(
+	HRESULT hr = device->CreateCommittedResource(
 		&defaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&TexDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
 		IID_PPV_ARGS(&Resource));
+
+	if (FAILED(hr)) {
+		OutputDebugStringA(("CreateResourceHeap FAILED for: " + Name + "\n").c_str());
+		return;
+	}
+	// 鍏抽敭锛氬垱寤烘柊璧勬簮鍚庯紝蹇呴』鍚屾 CurrentState
+	CurrentState = D3D12_RESOURCE_STATE_COPY_DEST;
 
 
 	const UINT64 UploadBufferSize = GetRequiredIntermediateSize(Resource.Get(), 0, 1);

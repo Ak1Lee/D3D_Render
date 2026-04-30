@@ -1,4 +1,4 @@
-#include "DXRootSignature.h"
+ï»¿#include "DXRootSignature.h"
 #include "dxUtils.h"
 
 void DXRootSignature::AddCBVDescriptorTable(UINT shaderRegister, D3D12_SHADER_VISIBILITY visibility)
@@ -60,10 +60,10 @@ void DXRootSignature::AddRootConstantBufferView(UINT shaderRegister, D3D12_SHADE
 
 void DXRootSignature::Add32BitConstants(UINT shaderRegister, UINT numValues, UINT registerSpace, D3D12_SHADER_VISIBILITY visibility)
 {
-	// ´´½¨Ò»¸öĞÂµÄ²ÎÊı¶ÔÏó
+	// åˆ›å»ºä¸€ä¸ªæ–°çš„å‚æ•°å¯¹è±¡
 	CD3DX12_ROOT_PARAMETER param = {};
 
-	// ³õÊ¼»¯Îª³£Á¿ÀàĞÍ
+	// åˆå§‹åŒ–ä¸ºå¸¸é‡ç±»å‹
 	// init helper: (num32BitValues, shaderRegister, registerSpace, visibility)
 	param.InitAsConstants(numValues, shaderRegister, registerSpace, visibility);
 
@@ -88,7 +88,7 @@ Microsoft::WRL::ComPtr<ID3D12RootSignature> DXRootSignature::Build(ID3D12Device*
 		&serializedRootSig, &errorBlob);
 	if (errorBlob != nullptr)
 	{
-		// °Ñ´íÎóĞÅÏ¢Êä³öµ½ VS µÄ Output ´°¿Ú
+		// æŠŠé”™è¯¯ä¿¡æ¯è¾“å‡ºåˆ° VS çš„ Output çª—å£
 		OutputDebugStringA((char*)errorBlob->GetBufferPointer());
 	}
 

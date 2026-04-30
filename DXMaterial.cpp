@@ -1,4 +1,4 @@
-#include "DXMaterial.h"
+﻿#include "DXMaterial.h"
 #include "DXDevice.h"
 #include "iostream"
 #include "render.h"
@@ -7,7 +7,7 @@
 
 //void Material::InitPSO()
 //{
-//    // ��ʼ������״̬���� (PSO)
+//    // 锟斤拷始锟斤拷锟斤拷锟斤拷状态锟斤拷锟斤拷 (PSO)
 //    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&PsoDesc, IID_PPV_ARGS(&m_pso)));
 //    
 //}
@@ -21,15 +21,15 @@
 //    if (bInit) return;
 //    InitPSO();
 //
-//    // cbv��ʼ��
+//    // cbv锟斤拷始锟斤拷
 //    auto DstSize = DXRender::GetInstance().GetSrvUavDescriptorSize();
 //	auto AllocInfo = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
-//	auto CbSize = (sizeof(MaterialConstants) + 255) & ~255; // 256�ֽڶ���
+//	auto CbSize = (sizeof(MaterialConstants) + 255) & ~255; // 256锟街节讹拷锟斤拷
 //
 //	CpuCbvHandle = AllocInfo.CpuHandle;
 //	GpuCbvHandle = AllocInfo.GpuHandle;
 //	DescriptorIndex = AllocInfo.Index;
-//    // ����������������Դ
+//    // 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷源
 //	CD3DX12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 //	CD3DX12_RESOURCE_DESC ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(CbSize);
 //    ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
@@ -40,10 +40,10 @@
 //        nullptr,
 //        IID_PPV_ARGS(&ConstantBuffer)
 //    ));
-//    // ӳ�䳣��������
-//    CD3DX12_RANGE readRange(0, 0); // �������ȡ�����Դ�����Է�ΧΪ0
+//    // 映锟戒常锟斤拷锟斤拷锟斤拷锟斤拷
+//    CD3DX12_RANGE readRange(0, 0); // 锟斤拷锟斤拷锟斤拷锟饺★拷锟斤拷锟斤拷源锟斤拷锟斤拷锟皆凤拷围为0
 //    ThrowIfFailed(ConstantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pCbvDataBegin)));
-//    // ����������������ͼ (CBV)
+//    // 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷图 (CBV)
 //    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 //    cbvDesc.BufferLocation = ConstantBuffer->GetGPUVirtualAddress();
 //    cbvDesc.SizeInBytes = CbSize;
@@ -74,7 +74,7 @@ void Material::Destroy()
 //    if (!pCbvDataBegin) return;
 //    if(bDirty)
 //    {
-//        // ���³���������
+//        // 锟斤拷锟铰筹拷锟斤拷锟斤拷锟斤拷锟斤拷
 //        memcpy(pCbvDataBegin, &ConstantData, sizeof(MaterialConstants));
 //        bDirty = false;
 //	}
@@ -114,7 +114,7 @@ int MaterialManager::InitAllMaterial()
 {
     for(auto& [name, material] : Materials)
     {
-        // ��ʼ��ÿ������
+        // 锟斤拷始锟斤拷每锟斤拷锟斤拷锟斤拷
 		// material->Init();
 
 	}

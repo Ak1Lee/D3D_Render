@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <d3dcompiler.h>
 #include <string>
 #include <unordered_map>

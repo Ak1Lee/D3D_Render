@@ -1,4 +1,4 @@
-#include "Timer.h"
+ï»¿#include "Timer.h"
 #include <iostream>
 
 Timer::Timer()
@@ -92,7 +92,7 @@ void Timer::StopNamedTimer(const std::string& Name)
 
 Timer& Timer::GetTimerInstance()
 {
-	// TODO: ÔÚ´Ë´¦²åÈë return Óï¾ä
+	// TODO: åœ¨æ­¤å¤„æ’å…¥ return è¯­å¥
 	{
 		static Timer Instance;
 		return Instance;

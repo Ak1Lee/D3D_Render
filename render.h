@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <d3d12.h>
 #include <d3d12shader.h>
 #include <d3dcompiler.h>
@@ -18,6 +18,8 @@
 #include "RenderPass.h"
 #include <functional>
 #include <assimp/Importer.hpp>
+
+#include "RenderPasses/RenderPasses.h"
 
 constexpr unsigned int FrameBufferCount = 2;
 inline unsigned int Width = 1920;
@@ -43,11 +45,11 @@ public:
         m_Desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
         m_Desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        // Input Layout Ĭ���ñ�׼��
+        // Input Layout 默锟斤拷锟矫憋拷准锟斤拷
         m_Desc.InputLayout = { StandardVertexInputLayout, _countof(StandardVertexInputLayout) };
     }
 
-    // ��ʽ���÷���
+    // 锟斤拷式锟斤拷锟矫凤拷锟斤拷
     GraphicsPSOBuilder& SetShaders(const std::wstring& vsName, const std::wstring& psName);
 
 
@@ -58,7 +60,7 @@ public:
         return *this;
     }
 
-    // ר�Ÿ� Shadow Pass ��
+    // 专锟脚革拷 Shadow Pass 锟斤拷
     GraphicsPSOBuilder& SetDepthOnly(DXGI_FORMAT dsvFormat)
     {
         m_Desc.NumRenderTargets = 0;
@@ -79,7 +81,7 @@ private:
 };
 
 
-// Pass 索引：和 Draw 里的提交顺序一致
+// Pass 绱㈠紩锛氬拰 Draw 閲岀殑鎻愪氦椤哄簭涓€鑷?
 enum EPassIndex : int
 {
     PASS_ZPRE = 0,
@@ -95,7 +97,7 @@ struct FrameResource
     ComPtr<ID3D12CommandAllocator> CmdAllocator;
     UINT64 FenceValue = 0;
 
-    // 多线程录制用：每个 Pass 独立的 Allocator + CmdList
+    // 澶氱嚎绋嬪綍鍒剁敤锛氭瘡涓?Pass 鐙珛鐨?Allocator + CmdList
     ComPtr<ID3D12CommandAllocator> PassCmdAllocators[PASS_COUNT];
     ComPtr<ID3D12GraphicsCommandList> PassCmdLists[PASS_COUNT];
 
@@ -169,18 +171,8 @@ public:
 
 	ID3D12GraphicsCommandList* GetCommandList() { return CommandList.Get(); }
 
-    void InitShadowMap();
-	void InitShadowPSO();
-
-	void InitPasses();
-
-    void InitShadowMaskTexture();
-	void InitShadowMaskPSO();
-
-    void InitZPrepassPSO();
-    void InitSkyPassPSO();
-    void InitDeferredLightPassPSO();
-    void InitBasePass();
+    void InitPasses_new();
+    void InitTextures();
 
 	void InitComputeRootSignature();
     void ComputeCubemap();
@@ -330,7 +322,7 @@ private:
 
 
 
-    std::vector<RenderPass> RenderPasses;
+    //std::vector<RenderPass> RenderPasses;
 
 	//compute shader
     Microsoft::WRL::ComPtr<ID3D12RootSignature> ComputeRootSignature;
