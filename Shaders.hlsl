@@ -19,11 +19,11 @@ cbuffer cbPerFrame : register(b1)
 
 struct VertexIn
 {
-    float3 Position : POSITION; // ±ØĞëÆ¥Åä
-    float3 Normal : NORMAL; // ¿ÉÒÔ²»ÓÃ£¬µ«ÒªÉùÃ÷±£³ÖË³Ğò
-    float2 TexCoord : TEXCOORD; // ¿ÉÒÔ²»ÓÃ£¬µ«ÒªÉùÃ÷±£³ÖË³Ğò
-    float3 Tangent : TANGENT; // ¿ÉÒÔ²»ÓÃ£¬µ«ÒªÉùÃ÷±£³ÖË³Ğò
-    float4 Color : COLOR; // Ê¹ÓÃ
+    float3 Position : POSITION; // å¿…é¡»åŒ¹é…
+    float3 Normal : NORMAL; // å¯ä»¥ä¸ç”¨ï¼Œä½†è¦å£°æ˜ä¿æŒé¡ºåº
+    float2 TexCoord : TEXCOORD; // å¯ä»¥ä¸ç”¨ï¼Œä½†è¦å£°æ˜ä¿æŒé¡ºåº
+    float3 Tangent : TANGENT; // å¯ä»¥ä¸ç”¨ï¼Œä½†è¦å£°æ˜ä¿æŒé¡ºåº
+    float4 Color : COLOR; // ä½¿ç”¨
 };
 
 struct PSInput
@@ -39,13 +39,13 @@ PSInput VSMain(VertexIn In)
 {
     PSInput output;
     output.position = mul(float4(In.Position, 1.0f), gWorldViewProj);
-    output.normal = In.Normal; // ´«µİ£¨¼´Ê¹Ôİ²»Ê¹ÓÃ£©
-    output.texCoord = In.TexCoord; // ´«µİ
-    output.tangent = In.Tangent; // ´«µİ
+    output.normal = In.Normal; // ä¼ é€’ï¼ˆå³ä½¿æš‚ä¸ä½¿ç”¨ï¼‰
+    output.texCoord = In.TexCoord; // ä¼ é€’
+    output.tangent = In.Tangent; // ä¼ é€’
     output.color = In.Color;
     output.color.rgb = In.Normal;
     output.color.rgb = dot(In.Normal, gLightDir)*0.5 + 0.5;
-    //gLightColor; // ¼òµ¥¹âÕÕµ÷½Ú
+    //gLightColor; // ç®€å•å…‰ç…§è°ƒèŠ‚
     return output;
 }
 

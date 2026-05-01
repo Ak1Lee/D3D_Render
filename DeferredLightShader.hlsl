@@ -56,7 +56,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r * r) / 8.0; // ֱ�ӹ����µ�kֵ����
+    float k = (r * r) / 8.0; // 直接光照下的k值计算
 
     float nom = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -79,7 +79,7 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 }
 
 // ----------------------------------------------------------------------------
-// IBL ר�õķ��������� (����ֲڶ�����)
+// IBL 专用的菲涅尔近似 (考虑粗糙度衰减)
 // ----------------------------------------------------------------------------
 float3 fresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
@@ -130,7 +130,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     
     
     float3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 ��ֹ����
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001; // +0.0001 防止除零
     float3 specularDirect = numerator / denominator;
     
     float3 kS_Direct = F;

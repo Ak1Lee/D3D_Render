@@ -1,5 +1,5 @@
 TextureCube g_EnvironmentMap : register(t0);
-SamplerState g_Sampler : register(s0); // ÏßĞÔ²ÉÑùÆ÷
+SamplerState g_Sampler : register(s0); // çº¿æ€§é‡‡æ ·å™¨
 
 RWTexture2DArray<float4> g_IrradianceMap : register(u0);
 
@@ -33,25 +33,25 @@ float3 CosineSampleHemisphere(float2 Xi)
 
 
 
-// Ïß³Ì×é¶¨Òå£ºÃ¿×é´¦Àí 32x32 ¸öÏñËØ£¬Z=1
+// çº¿ç¨‹ç»„å®šä¹‰ï¼šæ¯ç»„å¤„ç† 32x32 ä¸ªåƒç´ ï¼ŒZ=1
 [numthreads(32, 32, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
-    // DTid.x, DTid.y = ÏñËØ×ø±ê (0~31)
-    // DTid.z = ÃæË÷Òı (0~5)
+    // DTid.x, DTid.y = åƒç´ åæ ‡ (0~31)
+    // DTid.z = é¢ç´¢å¼• (0~5)
 
-    // 1. »ñÈ¡³ß´ç (32x32)
+    // 1. è·å–å°ºå¯¸ (32x32)
     uint width, height, elements;
     g_IrradianceMap.GetDimensions(width, height, elements);
 
-    // 2. ¼ÆËã UV (0.0 ~ 1.0)
+    // 2. è®¡ç®— UV (0.0 ~ 1.0)
     float2 uv = (float2(DTid.xy)+0.5f) / float2(width, height);
     uv = uv * 2.0 - 1.0;
-    uv.y = -uv.y; // ·­×ª Y Öá
+    uv.y = -uv.y; // ç¿»è½¬ Y è½´
     float3 dir;
     int faceIdx = DTid.z;
     
-    // DX12 CubeMap µÄ±ê×¼Ãæ¶¨Òå£º
+    // DX12 CubeMap çš„æ ‡å‡†é¢å®šä¹‰ï¼š
     // 0: +X, 1: -X
     // 2: +Y, 3: -Y
     // 4: +Z, 5: -Z
@@ -81,7 +81,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     float3 up = float3(0.0, 1.0, 0.0);
     float3 right = normalize(cross(up, N));
     if (length(cross(up, N)) < 0.01)
-    { // N ºÍ up Æ½ĞĞÊ±²æ»ıÎªÁã
+    { // N å’Œ up å¹³è¡Œæ—¶å‰ç§¯ä¸ºé›¶
         up = float3(1.0, 0.0, 0.0); 
         right = normalize(cross(up, N));
     }
@@ -125,6 +125,6 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     
     //float3 color = g_EnvironmentMap.SampleLevel(g_Sampler, N, 0).rgb;
     g_IrradianceMap[DTid] = float4(irradiance, 1.0);
-    // 4. Ğ´Èë½á¹û
+    // 4. å†™å…¥ç»“æœ
     // g_IrradianceMap[DTid] = float4(debugColor, 1.0);
 }

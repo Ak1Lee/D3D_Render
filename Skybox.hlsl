@@ -22,11 +22,11 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ��ɫ
-    float g_Roughness; // �ֲڶ�
-    float g_Metallic; // ������
-    float g_AO; // �������ڱ�
-    float g_Padding; // ���� 16 �ֽڶ���
+    float4 g_Albedo; // 颜色
+    float g_Roughness; // 粗糙度
+    float g_Metallic; // 金属度
+    float g_AO; // 环境光遮蔽
+    float g_Padding; // 凑齐 16 字节对齐
 };
 
 struct VertexIn

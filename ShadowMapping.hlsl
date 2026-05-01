@@ -22,11 +22,11 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ÑÕÉ«
-    float g_Roughness; // ´Ö²Ú¶È
-    float g_Metallic; // ½ğÊô¶È
-    float g_AO; // »·¾³¹âÕÚ±Î
-    float g_Padding; // ´ÕÆë 16 ×Ö½Ú¶ÔÆë
+    float4 g_Albedo; // é¢œè‰²
+    float g_Roughness; // ç²—ç³™åº¦
+    float g_Metallic; // é‡‘å±åº¦
+    float g_AO; // ç¯å¢ƒå…‰é®è”½
+    float g_Padding; // å‡‘é½ 16 å­—èŠ‚å¯¹é½
 };
 
 struct VertexIn
@@ -51,7 +51,7 @@ PSInput VSMain(VertexIn In)
     float4 posW = mul(float4(In.Position, 1.0f), gWorld);
     output.position = mul(posW, gLightViewProj);
 
-    //gLightColor; // ¼òµ¥¹âÕÕµ÷½Ú
+    //gLightColor; // ç®€å•å…‰ç…§è°ƒèŠ‚
     return output;
 }
 

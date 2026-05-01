@@ -1,16 +1,16 @@
 // Equirect2Cube.hlsl
 
-// ÊäÈë£ºt0 (ÄÇÕÅ HDR È«¾°Í¼)
+// è¾“å…¥ï¼št0 (é‚£å¼  HDR å…¨æ™¯å›¾)
 Texture2D g_EquirectangularMap : register(t0);
-SamplerState g_Sampler : register(s0); // ÏßĞÔ²ÉÑùÆ÷
+SamplerState g_Sampler : register(s0); // çº¿æ€§é‡‡æ ·å™¨
 
-// Êä³ö£ºu0 (Á¢·½ÌåÌùÍ¼£¬RWTexture2DArray ´ú±íËüÊÇ¿ÉĞ´µÄÊı×é)
-// Cubemap ÆäÊµ¾ÍÊÇ 6 ÕÅ Layer µÄ 2D ÎÆÀíÊı×é
+// è¾“å‡ºï¼šu0 (ç«‹æ–¹ä½“è´´å›¾ï¼ŒRWTexture2DArray ä»£è¡¨å®ƒæ˜¯å¯å†™çš„æ•°ç»„)
+// Cubemap å…¶å®å°±æ˜¯ 6 å¼  Layer çš„ 2D çº¹ç†æ•°ç»„
 RWTexture2DArray<float4> g_OutputCubemap : register(u0);
 
 static const float2 invAtan = float2(0.1591, 0.3183);
 
-// ¸¨Öúº¯Êı£º¸ù¾İ 3D ·½ÏòËã³ö 2D UV
+// è¾…åŠ©å‡½æ•°ï¼šæ ¹æ® 3D æ–¹å‘ç®—å‡º 2D UV
 float2 SampleSphericalMap(float3 v)
 {
     float2 uv = float2(atan2(v.z, v.x), asin(v.y));
@@ -20,12 +20,12 @@ float2 SampleSphericalMap(float3 v)
     return uv;
 }
 
-// ¸¨Öúº¯Êı£º¸ù¾İÃæË÷Òı (0~5) ºÍ UV£¬·´ÍÆ 3D ·½Ïò
+// è¾…åŠ©å‡½æ•°ï¼šæ ¹æ®é¢ç´¢å¼• (0~5) å’Œ UVï¼Œåæ¨ 3D æ–¹å‘
 float3 GetDirFromCubeFace(uint faceIdx, float2 uv)
 {
     float u = uv.x * 2.0 - 1.0;
     float v = uv.y * 2.0 - 1.0;
-    // DX12 ×óÊÖÏµÏÂµÄ Cubemap Ãæ³¯Ïò
+    // DX12 å·¦æ‰‹ç³»ä¸‹çš„ Cubemap é¢æœå‘
     switch (faceIdx)
     {
         case 0:
@@ -44,12 +44,12 @@ float3 GetDirFromCubeFace(uint faceIdx, float2 uv)
     return float3(0, 0, 0);
 }
 
-// Ïß³Ì×é¶¨Òå£ºÃ¿×é´¦Àí 32x32 ¸öÏñËØ£¬Z=1
+// çº¿ç¨‹ç»„å®šä¹‰ï¼šæ¯ç»„å¤„ç† 32x32 ä¸ªåƒç´ ï¼ŒZ=1
 [numthreads(32, 32, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {
-    // DTid.x, y ÊÇÏñËØ×ø±ê
-    // DTid.z ÊÇÇĞÆ¬Ë÷Òı (Ò²¾ÍÊÇ Cubemap µÄµÚ¼¸¸öÃæ£¬0~5)
+    // DTid.x, y æ˜¯åƒç´ åæ ‡
+    // DTid.z æ˜¯åˆ‡ç‰‡ç´¢å¼• (ä¹Ÿå°±æ˜¯ Cubemap çš„ç¬¬å‡ ä¸ªé¢ï¼Œ0~5)
     
     uint width, height, elements;
     g_OutputCubemap.GetDimensions(width, height, elements);
@@ -57,19 +57,19 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     if (DTid.x >= width || DTid.y >= height)
         return;
 
-    // 1. ¹éÒ»»¯ UV [0,1]
+    // 1. å½’ä¸€åŒ– UV [0,1]
     float2 uv = float2((DTid.x + 0.5) / width, (DTid.y + 0.5) / height);
     
-    // ×¢Òâ£ºCompute Shader Ğ´Í¼Í¨³£ÊÇµ¹×ÅµÄ£¬ĞèÒª Flip Y
-    // Èç¹û·¢ÏÖÌì¿ÕºĞÉÏÏÂµßµ¹£¬°ÑÏÂÃæÕâĞĞ½â¿ª
+    // æ³¨æ„ï¼šCompute Shader å†™å›¾é€šå¸¸æ˜¯å€’ç€çš„ï¼Œéœ€è¦ Flip Y
+    // å¦‚æœå‘ç°å¤©ç©ºç›’ä¸Šä¸‹é¢ å€’ï¼ŒæŠŠä¸‹é¢è¿™è¡Œè§£å¼€
     uv.y = 1.0 - uv.y; 
 
-    // 2. Ëã³ö 3D ÏòÁ¿
+    // 2. ç®—å‡º 3D å‘é‡
     float3 dir = normalize(GetDirFromCubeFace(DTid.z, uv));
 
-    // 3. ²ÉÑù HDR Í¼
+    // 3. é‡‡æ · HDR å›¾
     float3 color = g_EquirectangularMap.SampleLevel(g_Sampler, SampleSphericalMap(dir), 0).rgb;
 
-    // 4. Ğ´Èë½á¹û
+    // 4. å†™å…¥ç»“æœ
     g_OutputCubemap[int3(DTid.x, DTid.y, DTid.z)] = float4(color, 1.0);
 }

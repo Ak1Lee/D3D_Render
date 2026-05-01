@@ -7,8 +7,8 @@ cbuffer ConstBuffer : register(b0)
     float g_Roughness;
 };
 static const float PI = 3.14159265359;
-// --- ¸¨Öúº¯Êı£ºHammersley µÍ²îÒìĞòÁĞ ---
-// Éú³É [0,1] Çø¼äµÄ¾ùÔÈÎ±Ëæ»úµã
+// --- è¾…åŠ©å‡½æ•°ï¼šHammersley ä½å·®å¼‚åºåˆ— ---
+// ç”Ÿæˆ [0,1] åŒºé—´çš„å‡åŒ€ä¼ªéšæœºç‚¹
 float2 Hammersley(uint i, uint N)
 {
     uint bits = (i << 16u) | (i >> 16u);
@@ -20,25 +20,25 @@ float2 Hammersley(uint i, uint N)
     return float2(float(i) / float(N), rdi);
 }
 
-// --- ¸¨Öúº¯Êı£ºGGX ÖØÒªĞÔ²ÉÑù ---
-// ÊäÈë£ºËæ»úµã Xi£¬·¨Ïß N£¬´Ö²Ú¶È roughness
-// Êä³ö£ºÒ»¸öÆ«Ïò¸ß¹â²¨°ê·½ÏòµÄ°ë³ÌÏòÁ¿ H (ÊÀ½ç¿Õ¼ä)
+// --- è¾…åŠ©å‡½æ•°ï¼šGGX é‡è¦æ€§é‡‡æ · ---
+// è¾“å…¥ï¼šéšæœºç‚¹ Xiï¼Œæ³•çº¿ Nï¼Œç²—ç³™åº¦ roughness
+// è¾“å‡ºï¼šä¸€ä¸ªåå‘é«˜å…‰æ³¢ç“£æ–¹å‘çš„åŠç¨‹å‘é‡ H (ä¸–ç•Œç©ºé—´)
 float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
 {
     float a = roughness * roughness;
     
-    // 1. Çò×ø±ê×ª»» (¸ù¾İ GGX NDF ¸ÅÂÊ·Ö²¼·´ÍÆ)
+    // 1. çƒåæ ‡è½¬æ¢ (æ ¹æ® GGX NDF æ¦‚ç‡åˆ†å¸ƒåæ¨)
     float phi = 2.0 * PI * Xi.x;
     float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
     
-    // 2. ×ª»»µ½¾Ö²¿ÇĞÏß¿Õ¼ä×ø±ê
+    // 2. è½¬æ¢åˆ°å±€éƒ¨åˆ‡çº¿ç©ºé—´åæ ‡
     float3 H;
     H.x = cos(phi) * sinTheta;
     H.y = sin(phi) * sinTheta;
     H.z = cosTheta;
     
-    // 3. ×ª»»µ½ÊÀ½ç¿Õ¼ä (¹¹½¨ TBN ¾ØÕó)
+    // 3. è½¬æ¢åˆ°ä¸–ç•Œç©ºé—´ (æ„å»º TBN çŸ©é˜µ)
     float3 Up = abs(N.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 Tangent = normalize(cross(Up, N));
     float3 Bitangent = cross(N, Tangent);
@@ -48,7 +48,7 @@ float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
     return normalize(sampleVec);
 }
 
-// --- ¸¨Öúº¯Êı£º¼ÆËã CubeMap Ãæ·½Ïò ---
+// --- è¾…åŠ©å‡½æ•°ï¼šè®¡ç®— CubeMap é¢æ–¹å‘ ---
 float3 GetDirection(uint faceIdx, float2 uv)
 {
     float3 dir;
@@ -76,7 +76,7 @@ float3 GetDirection(uint faceIdx, float2 uv)
     return normalize(dir);
 }
 
-// Ïß³Ì×é¶¨Òå£ºÃ¿×é´¦Àí 32x32 ¸öÏñËØ£¬Z=1
+// çº¿ç¨‹ç»„å®šä¹‰ï¼šæ¯ç»„å¤„ç† 32x32 ä¸ªåƒç´ ï¼ŒZ=1
 [numthreads(32, 32, 1)]
 void CSMain(uint3 DTid : SV_DispatchThreadID)
 {

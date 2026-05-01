@@ -22,14 +22,14 @@ cbuffer cbPerFrame : register(b1)
 
 cbuffer MaterialCB : register(b2)
 {
-    float4 g_Albedo; // ��ɫ
-    float g_Roughness; // �ֲڶ�
-    float g_Metallic; // ������
-    float g_AO; // �������ڱ�
-    float g_Padding; // ���� 16 �ֽڶ���
+    float4 g_Albedo; // 颜色
+    float g_Roughness; // 粗糙度
+    float g_Metallic; // 金属度
+    float g_AO; // 环境光遮蔽
+    float g_Padding; // 凑齐 16 字节对齐
 };
 
-Texture2D g_ShadowMap : register(t0); // ��Ӧ Slot 3
+Texture2D g_ShadowMap : register(t0); // 对应 Slot 3
 SamplerState g_samShadow : register(s0); 
 SamplerComparisonState g_samShadowCompare : register(s1);
 
@@ -206,7 +206,7 @@ float DistributionGGX(float3 N, float3 H, float roughness)
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
-    float k = (r * r) / 8.0; // ֱ�ӹ����µ�kֵ����
+    float k = (r * r) / 8.0; // 直接光照下的k值计算
 
     float nom = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -242,7 +242,7 @@ PSInput VSMain(VertexIn In)
     float4 posW = mul(float4(In.Position, 1.0f), gWorld);
     output.worldposition = posW;
     output.PosLightSpace = mul(posW, gLightViewProj);
-    //gLightColor; // �򵥹��յ���
+    //gLightColor; // 简单光照调节
     return output;
 }
 
@@ -264,7 +264,7 @@ PSInput VSMain(VertexIn In)
     
 //     float2 texelSize = 1.0 / 2048.0;
 //     float shadow = 0.0;
-//     // PCF 3x3 ѭ��
+//     // PCF 3x3 循环
 //     // Ҳ���ǲ�����ǰ������ΧһȦ�� 9 ����
 //     for (int x = -2; x <= 2; ++x)
 //     {

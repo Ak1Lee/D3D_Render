@@ -7,8 +7,8 @@ cbuffer ConstBuffer : register(b0)
     float g_Roughness;
 };
 static const float PI = 3.14159265359;
-// --- ¸¨Öúº¯Êı£ºHammersley µÍ²îÒìĞòÁĞ ---
-// Éú³É [0,1] Çø¼äµÄ¾ùÔÈÎ±Ëæ»úµã
+// --- è¾…åŠ©å‡½æ•°ï¼šHammersley ä½å·®å¼‚åºåˆ— ---
+// ç”Ÿæˆ [0,1] åŒºé—´çš„å‡åŒ€ä¼ªéšæœºç‚¹
 float2 Hammersley(uint i, uint N)
 {
     uint bits = (i << 16u) | (i >> 16u);
@@ -20,25 +20,25 @@ float2 Hammersley(uint i, uint N)
     return float2(float(i) / float(N), rdi);
 }
 
-// --- ¸¨Öúº¯Êı£ºGGX ÖØÒªĞÔ²ÉÑù ---
-// ÊäÈë£ºËæ»úµã Xi£¬·¨Ïß N£¬´Ö²Ú¶È roughness
-// Êä³ö£ºÒ»¸öÆ«Ïò¸ß¹â²¨°ê·½ÏòµÄ°ë³ÌÏòÁ¿ H (ÊÀ½ç¿Õ¼ä)
+// --- è¾…åŠ©å‡½æ•°ï¼šGGX é‡è¦æ€§é‡‡æ · ---
+// è¾“å…¥ï¼šéšæœºç‚¹ Xiï¼Œæ³•çº¿ Nï¼Œç²—ç³™åº¦ roughness
+// è¾“å‡ºï¼šä¸€ä¸ªåå‘é«˜å…‰æ³¢ç“£æ–¹å‘çš„åŠç¨‹å‘é‡ H (ä¸–ç•Œç©ºé—´)
 float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
 {
     float a = roughness * roughness;
     
-    // 1. Çò×ø±ê×ª»» (¸ù¾İ GGX NDF ¸ÅÂÊ·Ö²¼·´ÍÆ)
+    // 1. çƒåæ ‡è½¬æ¢ (æ ¹æ® GGX NDF æ¦‚ç‡åˆ†å¸ƒåæ¨)
     float phi = 2.0 * PI * Xi.x;
     float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
     float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
     
-    // 2. ×ª»»µ½¾Ö²¿ÇĞÏß¿Õ¼ä×ø±ê
+    // 2. è½¬æ¢åˆ°å±€éƒ¨åˆ‡çº¿ç©ºé—´åæ ‡
     float3 H;
     H.x = cos(phi) * sinTheta;
     H.y = sin(phi) * sinTheta;
     H.z = cosTheta;
     
-    // 3. ×ª»»µ½ÊÀ½ç¿Õ¼ä (¹¹½¨ TBN ¾ØÕó)
+    // 3. è½¬æ¢åˆ°ä¸–ç•Œç©ºé—´ (æ„å»º TBN çŸ©é˜µ)
     float3 Up = abs(N.z) < 0.999 ? float3(0, 0, 1) : float3(1, 0, 0);
     float3 Tangent = normalize(cross(Up, N));
     float3 Bitangent = cross(N, Tangent);
@@ -48,7 +48,7 @@ float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
     return normalize(sampleVec);
 }
 
-// --- 3. ¼¸ºÎÕÚ±Îº¯Êı (Geometry Schlick-GGX) ---
+// --- 3. å‡ ä½•é®è”½å‡½æ•° (Geometry Schlick-GGX) ---
 // Direct Light: k = (a+1)^2 / 8
 // IBL:          k = a^2 / 2
 float GeometrySchlickGGX(float NdotV, float roughness)
@@ -73,8 +73,8 @@ float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
 }
 float2 IntegrateBRDF(float NdotV, float roughness)
 {
-    // ¹¹½¨ÊÓÏßÏòÁ¿ V
-    // ¼ÙÉè V ÔÚ XZ Æ½ÃæÉÏ
+    // æ„å»ºè§†çº¿å‘é‡ V
+    // å‡è®¾ V åœ¨ XZ å¹³é¢ä¸Š
     float3 V;
     V.x = sqrt(1.0 - NdotV * NdotV);
     V.y = 0.0;
@@ -101,7 +101,7 @@ float2 IntegrateBRDF(float NdotV, float roughness)
         {
             float G = GeometrySmith(N, V, L, roughness);
             
-            // ÏÂÃæÊÇ Split Sum µÄÊıÑ§ÍÆµ¼½á¹û£º
+            // ä¸‹é¢æ˜¯ Split Sum çš„æ•°å­¦æ¨å¯¼ç»“æœï¼š
             float G_Vis = (G * VdotH) / (NdotH * NdotV);
             float Fc = pow(1.0 - VdotH, 5.0);
 
@@ -115,7 +115,7 @@ float2 IntegrateBRDF(float NdotV, float roughness)
     
     return float2(A, B);
 }
-// --- ¸¨Öúº¯Êı£º¼ÆËã CubeMap Ãæ·½Ïò ---
+// --- è¾…åŠ©å‡½æ•°ï¼šè®¡ç®— CubeMap é¢æ–¹å‘ ---
 float3 GetDirection(uint faceIdx, float2 uv)
 {
     float3 dir;
@@ -153,15 +153,15 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     if (DTid.x >= width || DTid.y >= height)
         return;
 
-    // ¹éÒ»»¯×ø±ê×÷ÎªÊäÈë²ÎÊı
+    // å½’ä¸€åŒ–åæ ‡ä½œä¸ºè¾“å…¥å‚æ•°
     // DTid.x -> NdotV (0.0 ~ 1.0)
     // DTid.y -> Roughness (0.0 ~ 1.0)
     float NdotV = (float(DTid.x) + 0.5) / float(width);
     float roughness = (float(DTid.y) + 0.5) / float(height);
 
-    // »ı·Ö
+    // ç§¯åˆ†
     float2 envBRDF = IntegrateBRDF(NdotV, roughness);
 
-    // Ğ´Èë
+    // å†™å…¥
     g_LUT[DTid.xy] = envBRDF;
 }
