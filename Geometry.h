@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 // 1. 棣栧厛鍖呭惈 DirectX 鏍稿績搴?
 #include <DirectXMath.h>

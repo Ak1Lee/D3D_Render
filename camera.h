@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "DirectXMath.h"
 #include "MathHelper.h"
@@ -47,8 +47,11 @@ class Camera
 private:
 	DirectX::XMFLOAT3 Forward = DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f);
 	//DirectX::XMFLOAT3 Position		= DirectX::XMFLOAT3(4.f, 4.f, -8.0f);
-	DirectX::XMFLOAT3 Position =  DirectX::XMFLOAT3(0.f, 0.f, -8.0f);
-	DirectX::XMFLOAT3 Target	= DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+	 //DirectX::XMFLOAT3 Position =  DirectX::XMFLOAT3(0.f, 0.f, -8.0f);
+	 //DirectX::XMFLOAT3 Target	= DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f);
+	DirectX::XMFLOAT3 Position = DirectX::XMFLOAT3(16.f, 16.f, -5.0f);
+	DirectX::XMFLOAT3 Target = DirectX::XMFLOAT3(16.0f, 16.0f, 24.0f);
+
 	DirectX::XMFLOAT3 Up		= DirectX::XMFLOAT3(0.0f, 1.0f, 0.0f);
 	DirectX::XMFLOAT3 Right		= DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
 
