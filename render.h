@@ -117,7 +117,16 @@ struct FrameResource
 
 };
 
-
+struct CascadeResource {
+    ComPtr<ID3D12Resource> buffer;
+	DescriptorHandle srvHandle;
+    DescriptorHandle uavHandle;
+    D3D12_RESOURCE_STATES m_CascadeState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    int spatialRes[3];      // 空间分辨率
+    int probeSize;          // probe 边长
+    int raysPerHemi;        // 每半球 ray 数
+    int totalElements;      // 总 float4 数量
+};
 
 
 class DXRender
@@ -173,6 +182,8 @@ public:
 
     void InitPasses_new();
     void InitTextures();
+
+    void InitGIContent();
 
 	void InitComputeRootSignature();
     void ComputeCubemap();
@@ -361,5 +372,25 @@ private:
     class EditorUI* m_UI = nullptr;
 
 	PassManager m_PassManager;
+
+
+
+    // GI
+	bool bEnableGITest = true;
+    std::shared_ptr<Texture> m_voxelGrid;
+	int voxelGridWidth = 32;
+	int voxelGridHeight = 32;
+	int voxelGridDepth = 48;
+
+    ComPtr<ID3D12Resource> m_Cascade0Buffer;
+    ComPtr<ID3D12Resource> m_Cascade1Buffer;
+    ComPtr<ID3D12Resource> m_Cascade2Buffer;
+
+    DescriptorHandle m_Cascade0SRV;
+    DescriptorHandle m_Cascade0UAV;
+    D3D12_RESOURCE_STATES m_Cascade0State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+	CascadeResource m_CascadeResources[2][5];
+    int m_currCascadeResIdx = 0;
 };
 

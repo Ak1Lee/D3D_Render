@@ -1,4 +1,4 @@
-﻿#include "render.h"
+#include "render.h"
 
 
 #include <iostream>
@@ -28,6 +28,16 @@
 
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+struct CascadeCB {
+    int spatialResX, spatialResY, spatialResZ;  // int3 = 12 bytes
+    int probeSize;                                // 4 bytes → 刚好凑满 16 bytes
+    int upperSpatialResX, upperSpatialResY, upperSpatialResZ; // 12 bytes
+    int upperProbeSize;                           // 4 bytes → 刚好凑满 16 bytes
+    int cascadeLevel;                             // 4 bytes
+    float lodFactor;                              // 4 bytes
+};
+
 
 LRESULT CALLBACK GlobalWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -79,6 +89,7 @@ void DXRender::Init(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(CommandList->Reset(CommandAllocator.Get(), nullptr));
     InitTextures();
+	InitGIContent();
     InitPasses_new();
     // InitEnvCubeMap 需要 CommandList 处于打开状态
     InitEnvCubeMapAndIrradianceMap();
@@ -1218,6 +1229,7 @@ void DXRender::Draw()
     CurrentFrameIdx = SwapChain3->GetCurrentBackBufferIndex();
 
     CurrentFrameResourceIndex = (CurrentFrameResourceIndex + 1) % FrameResourceNum;
+    m_currCascadeResIdx = 1 - m_currCascadeResIdx;
 }
 
 DXRender::~DXRender()
@@ -1246,6 +1258,145 @@ DXRender::~DXRender()
 
 void DXRender::InitPasses_new()
 {
+
+    IRenderPass* gI_VoxelBuildPass = m_PassManager.AddPass<GI_VoxelBuildPass>();
+    gI_VoxelBuildPass->AddDependency(m_voxelGrid.get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    gI_VoxelBuildPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
+            auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
+            ID3D12DescriptorHeap* descriptorHeaps[] = {
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+            };
+            CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+			m_voxelGrid->BindUAV_Compute(CommandList, 0);
+            CommandList->Dispatch(
+                (voxelGridWidth  + 7) / 8,
+                (voxelGridHeight + 7) / 8,
+                (voxelGridDepth  + 7) / 8);
+        };
+
+    IRenderPass* gI_Cascade0Pass = m_PassManager.AddPass<GI_Cascade0Pass>();
+	gI_Cascade0Pass->AddDependency(m_voxelGrid.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    
+    gI_Cascade0Pass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
+        {
+            // cascade0 必须处于 UAV 状态才能写（首帧已经是 UAV，后续帧从 PIXEL_SHADER_RESOURCE 转回来）
+            if (m_Cascade0State != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+            {
+                CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                    m_Cascade0Buffer.Get(),
+                    m_Cascade0State,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                CommandList->ResourceBarrier(1, &b);
+                m_Cascade0State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            }
+
+            ID3D12DescriptorHeap* descriptorHeaps[] = {
+                DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+            };
+            CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+            // root param 0: t0 voxelGrid SRV
+            m_voxelGrid->BindSRV_Compute(CommandList, 0);
+            // root param 1: u0 cascade0 UAV
+            CommandList->SetComputeRootDescriptorTable(1, m_Cascade0UAV.GpuHandle);
+
+            CommandList->Dispatch(128, 48, 1);
+        };
+
+    // IRenderPass* gI_CascadePass = m_PassManager.AddPass<GI_CascadePass>();
+    int startLevel = 4;
+    for (int level = startLevel; level >= 0; level--) {
+        IRenderPass* gI_CascadePass = m_PassManager.AddPass<GI_CascadePass>();
+        gI_CascadePass->AddDependency(m_voxelGrid.get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        gI_CascadePass->Execute = [this, level, startLevel](ID3D12GraphicsCommandList* CommandList)
+            {
+				auto& cascadeResource = m_CascadeResources[m_currCascadeResIdx][level];
+                ID3D12DescriptorHeap* descriptorHeaps[] = {
+                    DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+                };
+                CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+                // root param 0: t0 voxelGrid SRV
+                m_voxelGrid->BindSRV_Compute(CommandList, 0);
+                if (level != 4)
+                {
+                    // Index 1: upper cascade0 (StructuredBuffer) SRV t1
+                    auto& preCascadeResource = m_CascadeResources[m_currCascadeResIdx][level+1];
+                    if (preCascadeResource.m_CascadeState != D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+                    {
+                        CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                            preCascadeResource.buffer.Get(),
+                            preCascadeResource.m_CascadeState,
+                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                        CommandList->ResourceBarrier(1, &b);
+						preCascadeResource.m_CascadeState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+                    }
+					CommandList->SetComputeRootDescriptorTable(1, preCascadeResource.srvHandle.GpuHandle);
+
+                }
+                else
+                {
+                    CommandList->SetComputeRootDescriptorTable(1, cascadeResource.srvHandle.GpuHandle);
+                }
+				// Index2 : current cascade RWTexture u1
+                if (cascadeResource.m_CascadeState != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+                {
+                    CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                        cascadeResource.buffer.Get(),
+                        cascadeResource.m_CascadeState,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                    CommandList->ResourceBarrier(1, &b);
+                    cascadeResource.m_CascadeState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+                }
+                CommandList->SetComputeRootDescriptorTable(2, cascadeResource.uavHandle.GpuHandle);
+				// b0
+
+                CascadeCB cb;
+                cb.spatialResX = cascadeResource.spatialRes[0];
+                cb.spatialResY = cascadeResource.spatialRes[1];
+                cb.spatialResZ = cascadeResource.spatialRes[2];
+                cb.probeSize = cascadeResource.probeSize;
+                cb.cascadeLevel = level;
+                cb.lodFactor = powf(2.0f, (float)level);
+                if (level < startLevel) {
+                    auto& upper = m_CascadeResources[m_currCascadeResIdx][level + 1];
+                    cb.upperSpatialResX = upper.spatialRes[0];
+                    cb.upperSpatialResY = upper.spatialRes[1];
+                    cb.upperSpatialResZ = upper.spatialRes[2];
+                    cb.upperProbeSize = upper.probeSize;
+                }
+                else {
+                    cb.upperSpatialResX = 0;
+                    cb.upperSpatialResY = 0;
+                    cb.upperSpatialResZ = 0;
+                    cb.upperProbeSize = 0;
+                }
+                CommandList->SetComputeRoot32BitConstants(3, 10, &cb, 0);
+
+                // Index 4 t2
+				int preIdx = 1 - m_currCascadeResIdx;
+                if (m_CascadeResources[preIdx][0].m_CascadeState != D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+                {
+                    CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                        m_CascadeResources[preIdx][0].buffer.Get(),
+                        m_CascadeResources[preIdx][0].m_CascadeState,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+					CommandList->ResourceBarrier(1, &b);
+					m_CascadeResources[preIdx][0].m_CascadeState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+                }
+                CommandList->SetComputeRootDescriptorTable(4, m_CascadeResources[preIdx][0].uavHandle.GpuHandle);
+
+
+                int totalXY = cb.spatialResX * cb.spatialResY;
+                int dispatchX = (totalXY + 63) / 64;
+                CommandList->Dispatch(dispatchX, cb.spatialResZ, 1);
+            };
+
+    }
+
+
+
 
     IRenderPass* zPrePass = m_PassManager.AddPass<ZPrePass>();
 	zPrePass->SetRootSignature(RootSignature.Get());
@@ -1674,6 +1825,65 @@ void DXRender::InitPasses_new()
             CommandList->DrawIndexedInstanced(SkyboxMesh->GetIndexCount(), 1, 0, 0, 0);
         };
 
+    if (bEnableGITest)
+    {
+        IRenderPass* giViewPass = m_PassManager.AddPass<GI_ViewPass>();
+        giViewPass->AddDependency(m_voxelGrid.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        giViewPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
+            {
+                auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
+
+                // cascade buffer 不是 Texture，手动 barrier 到 PIXEL_SHADER_RESOURCE
+                auto& cascade0 = m_CascadeResources[m_currCascadeResIdx][0];
+                if (cascade0.m_CascadeState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                {
+                    CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                        cascade0.buffer.Get(),
+                        cascade0.m_CascadeState,
+                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                    CommandList->ResourceBarrier(1, &b);
+                    cascade0.m_CascadeState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                }
+
+                ID3D12DescriptorHeap* descriptorHeaps[] = {
+                    DescriptorAllocatorManager::GetInstance().GetCBV_SRV_UAV_Heap()
+                };
+                CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+                // 此时 back buffer 已经在 RENDER_TARGET 状态（DeferredLightPass 已转换）
+                D3D12_CPU_DESCRIPTOR_HANDLE rtv = RtvHeap->GetCPUDescriptorHandleForHeapStart();
+                rtv.ptr += CurrentFrameIdx * RtvDescriptorSize;
+                CommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+                CommandList->RSSetViewports(1, &ScreenViewport);
+                CommandList->RSSetScissorRects(1, &ScissorRect);
+
+                // 更新 LightConstants（CameraInvViewProj + CameraPosition）
+                auto camPos = MainCamera.GetPosition();
+                LightConstantInstance.CameraPosition = { camPos.x, camPos.y, camPos.z };
+                DirectX::XMMATRIX VP = MainCamera.CalViewProjMatrix();
+                DirectX::XMVECTOR det;
+                DirectX::XMMATRIX InvVP = DirectX::XMMatrixInverse(&det, VP);
+                XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, DirectX::XMMatrixTranspose(InvVP));
+                if (CurrFrameResource.LightConstantBufferMappedData)
+                {
+                    memcpy(CurrFrameResource.LightConstantBufferMappedData,
+                        &LightConstantInstance, sizeof(LightConstants));
+                }
+
+                // PassManager 已设过 RootSig + PSO（graphics 路径）
+                CommandList->SetGraphicsRootConstantBufferView(0,
+                    CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                CommandList->SetGraphicsRootDescriptorTable(1, m_voxelGrid->GetSRV_G());
+                CommandList->SetGraphicsRootDescriptorTable(2, m_CascadeResources[m_currCascadeResIdx][0].srvHandle.GpuHandle);
+
+                CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                CommandList->IASetVertexBuffers(0, 0, nullptr);
+                CommandList->IASetIndexBuffer(nullptr);
+                CommandList->DrawInstanced(3, 1, 0, 0);
+            };
+    }
+
     m_PassManager.InitAllPasses(Device::GetInstance().GetD3DDevice());
 }
 
@@ -1731,6 +1941,138 @@ void DXRender::InitTextures()
     GBuffer2Desc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
     GBuffer2Desc.ViewFlags = TextureViewFlags::RTV | TextureViewFlags::SRV | TextureViewFlags::UAV;
     m_GBuffer2->Create(CommandList.Get(), GBuffer2Desc);
+
+}
+
+void DXRender::InitGIContent()
+{
+    if (bEnableGITest == false)return;
+	m_voxelGrid = std::make_shared<Texture>("VoxelGrid");
+    TextureDesc voxelDesc = TextureDesc::Create3D(
+        voxelGridWidth,
+        voxelGridHeight,
+        voxelGridDepth,
+        DXGI_FORMAT_R16G16B16A16_FLOAT,
+		TextureViewFlags::SRV | TextureViewFlags::UAV
+    );
+	m_voxelGrid->Create(CommandList.Get(), voxelDesc);
+
+	const UINT cnt0 = voxelGridWidth * voxelGridHeight * voxelGridDepth * 6 * 9;
+	const UINT stride0 = sizeof(float) * 4; // float4
+	const UINT64 bufferSize = (UINT64)cnt0 * stride0;
+    D3D12_RESOURCE_DESC desc = {};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    desc.Width = bufferSize;
+    desc.Height = 1;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_UNKNOWN;
+    desc.SampleDesc.Count = 1;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+
+    Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
+        &heapProps, D3D12_HEAP_FLAG_NONE,
+        &desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+        nullptr, IID_PPV_ARGS(&m_Cascade0Buffer));
+    m_Cascade0State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+    // SRV for cascade0 (StructuredBuffer<float4>)
+    m_Cascade0SRV = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Buffer.FirstElement = 0;
+    srvDesc.Buffer.NumElements = cnt0;
+    srvDesc.Buffer.StructureByteStride = stride0;
+    srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+    Device::GetInstance().GetD3DDevice()->CreateShaderResourceView(
+        m_Cascade0Buffer.Get(), &srvDesc, m_Cascade0SRV.CpuHandle);
+
+    // UAV for cascade0 (RWStructuredBuffer<float4>)
+    m_Cascade0UAV = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Buffer.FirstElement = 0;
+    uavDesc.Buffer.NumElements = cnt0;
+    uavDesc.Buffer.StructureByteStride = stride0;
+    uavDesc.Buffer.CounterOffsetInBytes = 0;
+    uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+    Device::GetInstance().GetD3DDevice()->CreateUnorderedAccessView(
+        m_Cascade0Buffer.Get(), nullptr, &uavDesc, m_Cascade0UAV.CpuHandle);
+
+    for (int idx = 0; idx < 2; ++idx)
+    {
+
+        
+        for(int i = 0; i < 5; ++i)
+        {
+            int probeSize = 3;
+            int res[3] = { 32,32,48 };
+		    m_CascadeResources[idx][i].spatialRes[0] = res[0];
+            m_CascadeResources[idx][i].spatialRes[1] = res[1];
+            m_CascadeResources[idx][i].spatialRes[2] = res[2];
+
+            m_CascadeResources[idx][i].probeSize = probeSize;
+		    m_CascadeResources[idx][i].raysPerHemi = probeSize * probeSize;
+		    m_CascadeResources[idx][i].totalElements = res[0] * res[1] * res[2] * 6 * m_CascadeResources[idx][i].raysPerHemi;
+            D3D12_RESOURCE_DESC cascadeDesc = {};
+            cascadeDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            cascadeDesc.Width = (UINT64)m_CascadeResources[idx][i].totalElements * sizeof(float) * 4; // float4
+            cascadeDesc.Height = 1;
+            cascadeDesc.DepthOrArraySize = 1;
+            cascadeDesc.MipLevels = 1;
+            cascadeDesc.Format = DXGI_FORMAT_UNKNOWN;
+            cascadeDesc.SampleDesc.Count = 1;
+            cascadeDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            cascadeDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+            CD3DX12_HEAP_PROPERTIES cascadeHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+            Device::GetInstance().GetD3DDevice()->CreateCommittedResource(
+                &cascadeHeapProps, D3D12_HEAP_FLAG_NONE,
+                &cascadeDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                nullptr, IID_PPV_ARGS(&(m_CascadeResources[idx][i].buffer)));
+
+		    m_CascadeResources[idx][i].m_CascadeState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+            // SRV for cascade (StructuredBuffer<float4>)
+            m_CascadeResources[idx][i].srvHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+            D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+            srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+            srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+            srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srvDesc.Buffer.FirstElement = 0;
+            srvDesc.Buffer.NumElements = m_CascadeResources[idx][i].totalElements;
+            srvDesc.Buffer.StructureByteStride = sizeof(float) * 4;;
+            srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+            Device::GetInstance().GetD3DDevice()->CreateShaderResourceView(
+                m_CascadeResources[idx][i].buffer.Get(), &srvDesc, m_CascadeResources[idx][i].srvHandle.CpuHandle);
+
+            // UAV for cascade0 (RWStructuredBuffer<float4>)
+            m_CascadeResources[idx][i].uavHandle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
+            D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+            uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+            uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+            uavDesc.Buffer.FirstElement = 0;
+            uavDesc.Buffer.NumElements = m_CascadeResources[idx][i].totalElements;
+            uavDesc.Buffer.StructureByteStride = sizeof(float) * 4;;
+            uavDesc.Buffer.CounterOffsetInBytes = 0;
+            uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+            Device::GetInstance().GetD3DDevice()->CreateUnorderedAccessView(
+                m_CascadeResources[idx][i].buffer.Get(), nullptr, &uavDesc, m_CascadeResources[idx][i].uavHandle.CpuHandle);
+
+
+            res[0] = res[0] / 2;
+		    res[1] = res[1] / 2;
+		    res[2] = res[2] / 2;
+
+            probeSize *= 2;
+
+	    }
+    }
 
 }
 
