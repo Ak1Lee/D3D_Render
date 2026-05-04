@@ -1,4 +1,4 @@
-﻿#pragma once 
+#pragma once 
 #include <string>
 #include <d3d12.h>
 #include <wrl.h>
@@ -56,6 +56,8 @@ protected:
 
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> m_PSO;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> m_RootSig;
+
+	bool m_IsCompute = false;
 
 	std::vector<PassDependency> m_Dependencies;
 

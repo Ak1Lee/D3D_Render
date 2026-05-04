@@ -1,4 +1,4 @@
-﻿#include "RenderPasses.h"
+#include "RenderPasses.h"
 #include "DXRootSignature.h"
 #include "DXShader.h"
 #include "DXDevice.h"
@@ -279,5 +279,116 @@ void BasePass::Init(ID3D12Device* device)
     psoDesc.RTVFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT;
     psoDesc.SampleDesc.Count = 1;
     ThrowIfFailed(Device::GetInstance().GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO)));
+
+}
+
+void GI_VoxelBuildPass::Init(ID3D12Device* device)
+{
+    m_IsCompute = true;
+    // signature
+    DXRootSignature rootSigBuilder;
+
+	rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL); // u0 Voxel Data RWTexture3D
+    m_RootSig = rootSigBuilder.Build(device);
+
+    auto CsByte = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"GI_VoxelBuildCS", L"GI_VoxelBuild.hlsl", "CSMain", "cs_5_0"
+    )->GetBytecode();
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = m_RootSig.Get();
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CsByte->GetBufferPointer()), CsByte->GetBufferSize() };
+    HRESULT hr = device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO));
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Compute PSO");
+    }
+}
+
+void GI_Cascade0Pass::Init(ID3D12Device* device)
+{
+    m_IsCompute = true;
+    DXRootSignature rootSigBuilder;
+	rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL); // t0 Voxel Data Texture3D
+    rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL); // u0 Cascade0 RWStructuredBuffer
+    m_RootSig = rootSigBuilder.Build(device);
+
+
+    auto CsByte = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"GI_Cascade0CS", L"GI_Cascade0.hlsl", "CSMain", "cs_5_0"
+    )->GetBytecode();
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = m_RootSig.Get();
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CsByte->GetBufferPointer()), CsByte->GetBufferSize() };
+    HRESULT hr = device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO));
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Compute PSO");
+    }
+
+}
+
+void GI_ViewPass::Init(ID3D12Device* device)
+{
+    // m_IsCompute = true;
+
+    DXRootSignature rootSigBuilder;
+    // Index 0: b0 LightCB (复用 LightConstants 布局)
+    rootSigBuilder.AddRootConstantBufferView(0);
+    // Index 1: t0 voxelGrid (Texture3D)
+    rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 2: t1 cascade0 (StructuredBuffer)
+    rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_RootSig = rootSigBuilder.Build(device);
+
+    auto VS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"GI_ViewVS", L"GI_View.hlsl", "VSMain", "vs_5_0"
+    )->GetBytecode();
+    auto PS = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"GI_ViewPS", L"GI_View.hlsl", "PSMain", "ps_5_0"
+    )->GetBytecode();
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.InputLayout = { nullptr, 0 };
+    psoDesc.pRootSignature = m_RootSig.Get();
+    psoDesc.VS = { reinterpret_cast<BYTE*>(VS->GetBufferPointer()), VS->GetBufferSize() };
+    psoDesc.PS = { reinterpret_cast<BYTE*>(PS->GetBufferPointer()), PS->GetBufferSize() };
+    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    psoDesc.DepthStencilState.DepthEnable = false;
+    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count = 1;
+    psoDesc.SampleMask = UINT_MAX;
+    ThrowIfFailed(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO)));
+}
+
+void GI_CascadePass::Init(ID3D12Device* device)
+{
+    m_IsCompute = true;
+    DXRootSignature rootSigBuilder;
+	// Index 0: t0 voxelGrid(Texture3D) SRV t0
+    rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+    // Index 1: upper cascade (StructuredBuffer) SRV t1
+    rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_ALL);
+	// Index 2: current cascade RWStructuredBuffer u0
+    rootSigBuilder.AddUAVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_ALL);
+	// Index 3: b0 cascade constants
+    rootSigBuilder.Add32BitConstants(0, 10, 0); // b0, 10 个值, space 0
+    // Index 4: preFrameCascade0 buffer SRV t2
+    rootSigBuilder.AddSRVDescriptorTable(2, 1, D3D12_SHADER_VISIBILITY_ALL);
+
+    m_RootSig = rootSigBuilder.Build(device);
+
+    auto CsByte = DXShaderManager::GetInstance().CreateOrFindShader(
+        L"GI_CascadeCS", L"GI_Cascade.hlsl", "CSMain", "cs_5_0"
+    )->GetBytecode();
+    D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+    psoDesc.pRootSignature = m_RootSig.Get();
+    psoDesc.CS = { reinterpret_cast<BYTE*>(CsByte->GetBufferPointer()), CsByte->GetBufferSize() };
+    HRESULT hr = device->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&m_PSO));
+    if (FAILED(hr)) {
+        throw std::runtime_error("Failed to create Compute PSO");
+    }
 
 }

@@ -12,7 +12,10 @@ void PassManager::ExecuteAllPasses(ID3D12GraphicsCommandList* CmdList)
 		}
 		if (pass->m_RootSig)
 		{
-			CmdList->SetGraphicsRootSignature(pass->m_RootSig.Get());
+			if (pass->m_IsCompute)
+				CmdList->SetComputeRootSignature(pass->m_RootSig.Get());
+			else
+				CmdList->SetGraphicsRootSignature(pass->m_RootSig.Get());
 		}
 		if (pass->m_PSO)
 		{

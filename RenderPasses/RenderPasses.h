@@ -1,4 +1,4 @@
-﻿#pragma once 
+#pragma once 
 #include "IRenderPass.h"
 
 
@@ -29,6 +29,26 @@ class ShadowMaskPass : public IRenderPass
 };
 
 class SkyboxPass : public IRenderPass
+{
+	void Init(ID3D12Device* device) override;
+};
+
+class GI_VoxelBuildPass : public IRenderPass
+{
+	void Init(ID3D12Device* device) override;
+};
+
+class GI_Cascade0Pass : public IRenderPass
+{
+	void Init(ID3D12Device* device) override;
+};
+
+class GI_CascadePass : public IRenderPass
+{
+	void Init(ID3D12Device* device) override;
+};
+
+class GI_ViewPass : public IRenderPass
 {
 	void Init(ID3D12Device* device) override;
 };
