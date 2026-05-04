@@ -1,4 +1,4 @@
-﻿#include "Texture.h"
+#include "Texture.h"
 #include "render.h"
 
 //#define STB_IMAGE_IMPLEMENTATION
@@ -150,6 +150,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 {
 	Width = Desc.Width;
 	Height = Desc.Height;
+	Depth = Desc.Depth;
 	Format = Desc.Format;
 	ViewFlags = Desc.ViewFlags;
 	MipLevels = Desc.MipLevels;
@@ -165,7 +166,11 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	TexDesc.Dimension = Desc.Dimension;
 	TexDesc.Width = Width;
 	TexDesc.Height = Height;
-	TexDesc.DepthOrArraySize = ArraySize;
+	// 3D texture: DepthOrArraySize = Depth; 2D/Cube: DepthOrArraySize = ArraySize
+	if (Desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+		TexDesc.DepthOrArraySize = Depth;
+	else
+		TexDesc.DepthOrArraySize = ArraySize;
 	TexDesc.MipLevels = MipLevels;
 	TexDesc.Format = GetTypelessFormat(Format); // 銆愬叧閿€戣祫婧愭湰韬鏄?Typeless
 	TexDesc.SampleDesc.Count = 1;
@@ -273,7 +278,14 @@ void Texture::CreateSRV(ID3D12Device* Device)
 		srvDesc.Format = Format;
 	}
 
-	if (m_IsCube)
+	if (TexDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+	{
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+		srvDesc.Texture3D.MostDetailedMip = 0;
+		srvDesc.Texture3D.MipLevels = TexDesc.MipLevels;
+		srvDesc.Texture3D.ResourceMinLODClamp = 0.0f;
+	}
+	else if (m_IsCube)
 	{
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 		srvDesc.TextureCube.MostDetailedMip = 0;
@@ -338,7 +350,14 @@ void Texture::CreateUAV_ForMip(ID3D12Device* Device, UINT MipSlice)
 	DescriptorHandle handle = DescriptorAllocatorManager::GetInstance().AllocateCBV_SRV_UAV();
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.Format = Format;
-	if (m_IsCube || ArraySize > 1)
+	if (TexDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+	{
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+		uavDesc.Texture3D.MipSlice = MipSlice;
+		uavDesc.Texture3D.FirstWSlice = 0;
+		uavDesc.Texture3D.WSize = max(1, Depth >> MipSlice);
+	}
+	else if (m_IsCube || ArraySize > 1)
 	{
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
 		uavDesc.Texture2DArray.MipSlice = MipSlice;

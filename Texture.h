@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <d3d12.h>
 #include <wrl.h>
@@ -78,6 +78,18 @@ struct TextureDesc
 		Desc.ViewFlags = Views;
 		Desc.ArraySize = 6; // Cube map has 6 faces
 		Desc.IsCubeMap = true;
+		return Desc;
+	}
+
+	static TextureDesc Create3D(UINT InWidth, UINT InHeight, UINT InDepth, DXGI_FORMAT InFormat, TextureViewFlags Views = TextureViewFlags::SRV)
+	{
+		TextureDesc Desc;
+		Desc.Width = InWidth;
+		Desc.Height = InHeight;
+		Desc.Depth = InDepth;
+		Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+		Desc.Format = InFormat;
+		Desc.ViewFlags = Views;
 		return Desc;
 	}
 
@@ -194,6 +206,7 @@ protected:
 
 	int Width = 0;
 	int Height = 0;
+	int Depth = 1;
 	int MipLevels = 1;
 	UINT ArraySize = 1;
 
