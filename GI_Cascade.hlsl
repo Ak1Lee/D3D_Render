@@ -15,6 +15,50 @@ StructuredBuffer<float4> preFrameCascade0 : register(t2);
 
 static int HEMI_COUNT = 6;
 static float PI = 3.14159265;
+static const float3 SUN_DIR = normalize(float3(0.5, 1.0, -0.3));
+static const float3 SUN_COLOR = float3(2.0, 1.5, 1.25);
+
+bool IsShadowed(float3 origin)
+{
+    float3 dir = SUN_DIR;
+    float3 invDir;
+    invDir.x = (abs(dir.x) < 1e-8) ? 1e10 : 1.0 / dir.x;
+    invDir.y = (abs(dir.y) < 1e-8) ? 1e10 : 1.0 / dir.y;
+    invDir.z = (abs(dir.z) < 1e-8) ? 1e10 : 1.0 / dir.z;
+
+    float3 t1 = (0.01 - origin) * invDir;
+    float3 t2 = (float3(31.99, 31.99, 47.99) - origin) * invDir;
+    float3 tMin = min(t1, t2);
+    float3 tMax = max(t1, t2);
+    float tNear = max(max(tMin.x, tMin.y), tMin.z);
+    float tFar  = min(min(tMax.x, tMax.y), tMax.z);
+    float t = max(tNear, 0.001);
+    if (tFar < t) return false;
+
+    int3 cell = int3(floor(origin + dir * t));
+    int3 step = int3(sign(dir));
+    float3 tDelta = abs(invDir);
+    float3 tNext = (float3(cell) + saturate(float3(step)) - origin) * invDir;
+    if (step.x == 0) tNext.x = 1e10;
+    if (step.y == 0) tNext.y = 1e10;
+    if (step.z == 0) tNext.z = 1e10;
+
+    for (int i = 0; i < 64; i++)
+    {
+        if (t > tFar) return false;
+        if (any(cell < 0) || cell.x >= 32 || cell.y >= 32 || cell.z >= 48) return false;
+
+        float4 voxel = voxelGrid.Load(int4(cell, 0));
+        if (voxel.w > 0.5 && voxel.w < 1.5) return true;  // solid → shadow
+        if (voxel.w > 1.5) return false;                   // emissive → lit
+
+        if (tNext.x < tNext.y && tNext.x < tNext.z) { t = tNext.x; tNext.x += tDelta.x; cell.x += step.x; }
+        else if (tNext.y < tNext.z)              { t = tNext.y; tNext.y += tDelta.y; cell.y += step.y; }
+        else                                     { t = tNext.z; tNext.z += tDelta.z; cell.z += step.z; }
+    }
+    return false;
+}
+
 //  0:-X  1:+X  2:-Y  3:+Y  4:-Z  5:+Z
 static const float3 HEMI_N[6] =
 {
@@ -114,9 +158,22 @@ float ComputeWeight(int rayIndex, int pSize, float3 dir, float3 N)
     return solidAngle * cosTheta;
 }
 
+#define TRILINEAR_INTEGRATE 0  // 1=三线性插值采样上一帧Cascade0  0=单点采样
+
+// 周围圆环 (45度 < Theta < 90度) 的完整积分也为 PI / 2
+// 我们提前将公式中的除以 PI (反照率 Albedo/PI 的 Lambert 公式) 塞了进去：
+static const float CASC0_WEIGHT[9] = {
+    0.0625, 0.0625, 0.0625,
+    0.0625, 0.5,    0.0625,
+    0.0625, 0.0625, 0.0625
+};
+
 // ========== 从 Cascade0 获取上一帧/本帧的辐照度 ==========
-float3 IntegrateVoxel(int3 p, float3 n)
+float3 IntegrateVoxel(int3 vp, float3 n)
 {
+    if (any(vp < 0) || vp.x >= 32 || vp.y >= 32 || vp.z >= 48)
+        return float3(0, 0, 0);
+
     float3 an = abs(n);
     int hemi;
     if (an.x > max(an.y, an.z))
@@ -127,33 +184,88 @@ float3 IntegrateVoxel(int3 p, float3 n)
         hemi = (n.z < 0) ? 4 : 5;
         
     float3 radiance = float3(0, 0, 0);
-    // 这里如果直接复用本帧刚开始写的 cascade0 会有问题（只能做到同一帧内的部分 Bleeding），
-    // 原版 Shadertoy 是每帧交替读取上一帧的 Cascade0 纹理池。
-    // 但是我们可以用来做自发光散发！如果你后续加入多帧 feedback 则这里读上一帧。
-    // 我们目前如果没有上一级的 Texture 就先给一个简单的微光作为底色
+    int3 res = int3(32, 32, 48);
+    for (int i = 0; i < 9; i++)
+    {
+        radiance += preFrameCascade0[CascadeIndex(vp, res, 9, hemi, i)].xyz * CASC0_WEIGHT[i];
+    }
+
     return radiance;
+}
+
+float3 IntegrateVoxelTrilinear(float3 worldPos, float3 normal)
+{
+    float3 probeCoord = worldPos - 0.5;
+    int3 base = int3(floor(probeCoord));
+    base = clamp(base, int3(0, 0, 0), int3(31, 31, 47));
+    float3 frac = clamp(probeCoord - float3(base), 0.0, 1.0);
+
+    float3 an = abs(normal);
+    int hemi;
+    if (an.x > max(an.y, an.z))
+        hemi = (normal.x < 0) ? 0 : 1;
+    else if (an.y > an.z)
+        hemi = (normal.y < 0) ? 2 : 3;
+    else
+        hemi = (normal.z < 0) ? 4 : 5;
+
+    float3 result = float3(0, 0, 0);
+    float weightSum = 0;
+    int3 res = int3(32, 32, 48);
+    for (int dz = 0; dz <= 1; dz++)
+        for (int dy = 0; dy <= 1; dy++)
+            for (int dx = 0; dx <= 1; dx++)
+            {
+                int3 probePos = base + int3(dx, dy, dz);
+                if (any(probePos < 0) || probePos.x >= 32 || probePos.y >= 32 || probePos.z >= 48)
+                    continue;
+                if (voxelGrid.Load(int4(probePos, 0)).w > 0.5)
+                    continue;
+
+                float3 s = smoothstep(0.0, 1.0, frac);
+                float3 w3 = lerp(1.0 - s, s, float3(dx, dy, dz));
+                float w = w3.x * w3.y * w3.z;
+
+                float3 radiance = float3(0, 0, 0);
+                for (int i = 0; i < 9; i++)
+                    radiance += preFrameCascade0[CascadeIndex(probePos, res, 9, hemi, i)].xyz * CASC0_WEIGHT[i];
+
+                result += radiance * w;
+                weightSum += w;
+            }
+    return weightSum > 0 ? result / weightSum : result;
 }
 
 float4 TraceRay(float3 origin, float3 dir)
 {
-    float3 invDir = 1.0 / dir;
+    // 安全倒数：防止 dir 分量为 0 产生 INF/NaN
+    // 注意：sign(0)=0 在 HLSL 中！所以用 1e10 而非 sign()*1e10
+    float3 invDir;
+    invDir.x = (abs(dir.x) < 1e-8) ? 1e10 : 1.0 / dir.x;
+    invDir.y = (abs(dir.y) < 1e-8) ? 1e10 : 1.0 / dir.y;
+    invDir.z = (abs(dir.z) < 1e-8) ? 1e10 : 1.0 / dir.z;
+
     float3 t1 = (0.01 - origin) * invDir;
     float3 t2 = (float3(31.99, 31.99, 47.99) - origin) * invDir;
-    
+
     float3 tMin = min(t1, t2);
     float3 tMax = max(t1, t2);
-    
+
     float tNear = max(max(tMin.x, tMin.y), tMin.z);
     float tFar = min(min(tMax.x, tMax.y), tMax.z);
-    
+
     float t = max(tNear, 0.001);
     if (tFar < t)
         return float4(0, 0, 0, -1);
-    
+
     int3 cell = int3(floor(origin + dir * t));
     int3 step = int3(sign(dir));
     float3 tDelta = abs(invDir);
     float3 tNext = (float3(cell) + saturate(float3(step)) - origin) * invDir;
+    // 方向为 0 的轴永远不该被选中 → 设巨大值
+    if (step.x == 0) tNext.x = 1e10;
+    if (step.y == 0) tNext.y = 1e10;
+    if (step.z == 0) tNext.z = 1e10;
     int3 hitNormalSign = int3(0, 0, 0);
 
     for (int i = 0; i < 128; i++)
@@ -163,18 +275,33 @@ float4 TraceRay(float3 origin, float3 dir)
         if (any(cell < 0) || cell.x >= 32 ||
             cell.y >= 32 || cell.z >= 48)
             break;
-        
+
         float4 voxel = voxelGrid.Load(int4(cell, 0));
-        
+
         if (voxel.w > 0.5)
         {
             // 命中自发光（w=2）→ 返回发光色
             if (voxel.w > 1.5)
-                return float4(voxel.xyz, t);
-            return float4(0, 0, 0, t);
+                return float4(voxel.xyz * 5.0, t);
 
+            // 命中普通固体（w=1）
+            float3 hitNorm = float3(hitNormalSign);
+            hitNorm = normalize(hitNorm);
+            float3 hitPos = origin + dir * t;
+
+#if TRILINEAR_INTEGRATE
+            float3 indirect = IntegrateVoxelTrilinear(hitPos + hitNorm * 0.5, hitNorm);
+#else
+            int3 probePosForPrevFrame = cell + hitNormalSign;
+            float3 indirect = IntegrateVoxel(probePosForPrevFrame, hitNorm);
+#endif
+            float NdotL = max(dot(hitNorm, SUN_DIR), 0);
+            float shadow = 1.0;
+            if (NdotL > 0)
+                shadow = IsShadowed(hitPos + hitNorm * 0.5) ? 0.0 : 1.0;
+            return float4(voxel.xyz * (indirect + SUN_COLOR * NdotL * shadow), t);
         }
-        
+
         // DDA 步进
         hitNormalSign = int3(0,0,0);
         if (tNext.x < tNext.y && tNext.x < tNext.z)
@@ -199,28 +326,8 @@ float4 TraceRay(float3 origin, float3 dir)
             cell.z += step.z;
         }
     }
-    float sky = pow(max(dir.y, 0.0) * 0.5 + 0.5, 2.0) * 5.0;
+    float sky = pow(max(dir.y, 0.0) * 0.5 + 0.5, 2.0) * 1.0;
     return float4(sky * float3(0.75, 0.85, 1.0), 100000.0);
-}
-
-// ========== Probe 位置偏移（避免嵌入几何体）==========
-bool IsOutsideGeo(int3 p)
-{
-    if (any(p < 0) || p.x >= 32 || p.y >= 32 || p.z >= 48)
-        return true;
-    return voxelGrid.Load(int4(p, 0)).w < 0.5;
-}
-
-float3 GeoOffset(float3 pos)
-{
-    for (int x = -1; x <= 0; x++)
-        for (int y = -1; y <= 0; y++)
-            for (int z = -1; z <= 0; z++)
-            {
-                if (IsOutsideGeo(int3(floor(pos)) + int3(x, y, z)))
-                    return float3(x, y, z) * 0.5;
-            }
-    return float3(0.001, 0.001, 0.001);
 }
 
 // ========== 上级 Cascade 的方向反查 ==========
@@ -300,18 +407,6 @@ float4 SampleUpperCascade(float3 worldPos, int rayIndex, int hemi)
     
     return float4(total, 1.0);
 }
-// [numthreads(64, 1, 1)]
-// void CSMain(uint3 dtid : SV_DispatchThreadID)
-// {
-//     // 只让第一个线程输出调试信息，其他直接返回
-//     if (dtid.x > 0 || dtid.y > 0) return;
-    
-//     // 把常量写到 buffer 的前几个位置
-//     currCascade[0] = float4(spatialRes, probeSize);
-//     currCascade[1] = float4(upperSpatialRes, upperProbeSize);
-//     currCascade[2] = float4(cascadeLevel, lodFactor, probeSize * probeSize, 0);
-//     return;
-// }
 
 [numthreads(64, 1, 1)]
 void CSMain(uint3 dtid : SV_DispatchThreadID)
@@ -349,33 +444,7 @@ void CSMain(uint3 dtid : SV_DispatchThreadID)
     // how many rays per hemi?
     int raysPerHemi = probeSize * probeSize;
 
-    // cascade 0 的线程里，临时调试
-    // if (cascadeLevel == 0)
-    // {
-    //     // 不用 SampleUpperCascade，手动读一个上级 probe 全部 ray 求和
-    //         int upperRPH = upperProbeSize * upperProbeSize;
-    //         int3 upperProbe = int3(floor(voxelWorldPos / 2.0));
-    //         upperProbe = clamp(upperProbe, int3(0, 0, 0), upperSpatialRes - 1);
-    
-    //         // 根据当前体素法线选半球（而不是固定 hemi=3）
-    //         // 临时用 hemi=0 到 5 都试一下
-    //         float3 bestSum = float3(0, 0, 0);
-    //         for (int h = 0; h < 6; h++)
-    //         {
-    //             float3 sum = float3(0, 0, 0);
-    //             for (int r = 0; r < upperRPH; r++)
-    //                 sum += upperCascade[CascadeIndex(upperProbe, upperSpatialRes, upperRPH, h, r)].xyz;
-    //             bestSum = max(bestSum, sum);
-    //         }
-    
-    //     // 不放大，看原始值
-    //         currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, 0, 0)] = float4(bestSum, 1.0);
-    //     // 同时写到所有半球让所有表面都能看到
-    //         for (int h = 1; h < 6; h++)
-    //             currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, h, 0)] = float4(bestSum, 1.0);
-    //         return;
-    // }
-
+    // ===== 调试：正常跑 ray tracing，然后 dump 左右探针的 TraceRay 原始结果 =====
     // 正常的 hemi/ray 循环在下面...
     for (int hemi = 0; hemi < HEMI_COUNT; ++hemi)
     {
@@ -383,31 +452,20 @@ void CSMain(uint3 dtid : SV_DispatchThreadID)
         float3 T = HEMI_T[hemi];
         float3 B = HEMI_B[hemi];
 
-        // how to get ray dir from hemi index and ray index?
-        float3 probePos;
-        if(cascadeLevel == 0)
-        {
-            probePos = voxelWorldPos - N * 0.25;
-        }
-        else
-        {
-            probePos = voxelWorldPos + GeoOffset(voxelWorldPos);  
-        }
+        float3 probePos = voxelWorldPos - N * 0.25;
         for (int ray = 0; ray < raysPerHemi; ++ray)
         {
             float3 dir = ComputeDir(ray, probeSize, N, T, B);
             float4 rayResult = TraceRay(probePos, dir);
-            
+
             float weight = ComputeWeight(ray, probeSize, dir, N);
-            rayResult.xyz = rayResult.xyz * weight;
-            
-            if (cascadeLevel < 4)         // 应该通过 CBuffer 传最大级别
+            // rayResult.xyz = rayResult.xyz * weight;  // 存储时不加权，读取时用 CASC0_WEIGHT 积分
+
+            if (cascadeLevel < 4)
             {
                 float4 upperLight = SampleUpperCascade(voxelWorldPos, ray, hemi);
                 float distInterp = clamp((rayResult.w - lodFactor) / lodFactor * 0.5, 0.0, 1.0);
-                rayResult.xyz = lerp(rayResult.xyz, upperLight.xyz, distInterp);
-                rayResult.xyz *= 2.0; // 适当放大亮度，抵消插值带来的衰减（现在 Cascade 存储的是纯 Radiance 而不是 Irradiance 了）
-                // rayResult.xyz = upperLight.xyz;
+                rayResult.xyz = lerp(rayResult.xyz, upperLight.xyz, distInterp) * 1.0;
             }
 
             currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, hemi, ray)]

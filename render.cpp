@@ -1827,22 +1827,32 @@ void DXRender::InitPasses_new()
 
     if (bEnableGITest)
     {
+        // Debug camera state: WASD=move, Q/E=up/down, arrows=rotate
+        static float dbgCamYaw   = -2.498f;
+        static float dbgCamPitch = 0.147f;
+        static float dbgCamPosX  = 28.0f;
+        static float dbgCamPosY  = 12.0f;
+        static float dbgCamPosZ  = 40.0f;
+
         IRenderPass* giViewPass = m_PassManager.AddPass<GI_ViewPass>();
         giViewPass->AddDependency(m_voxelGrid.get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         giViewPass->Execute = [this](ID3D12GraphicsCommandList* CommandList)
             {
                 auto& CurrFrameResource = FrameResources[CurrentFrameResourceIndex];
 
-                // cascade buffer 不是 Texture，手动 barrier 到 PIXEL_SHADER_RESOURCE
-                auto& cascade0 = m_CascadeResources[m_currCascadeResIdx][0];
-                if (cascade0.m_CascadeState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                // barrier 所有 5 级 cascade 到 PIXEL_SHADER_RESOURCE
+                for (int lv = 0; lv < 5; lv++)
                 {
-                    CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
-                        cascade0.buffer.Get(),
-                        cascade0.m_CascadeState,
-                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-                    CommandList->ResourceBarrier(1, &b);
-                    cascade0.m_CascadeState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                    auto& cascade = m_CascadeResources[m_currCascadeResIdx][lv];
+                    if (cascade.m_CascadeState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                    {
+                        CD3DX12_RESOURCE_BARRIER b = CD3DX12_RESOURCE_BARRIER::Transition(
+                            cascade.buffer.Get(),
+                            cascade.m_CascadeState,
+                            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+                        CommandList->ResourceBarrier(1, &b);
+                        cascade.m_CascadeState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                    }
                 }
 
                 ID3D12DescriptorHeap* descriptorHeaps[] = {
@@ -1874,8 +1884,44 @@ void DXRender::InitPasses_new()
                 // PassManager 已设过 RootSig + PSO（graphics 路径）
                 CommandList->SetGraphicsRootConstantBufferView(0,
                     CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                // root param 1: t0 voxelGrid
                 CommandList->SetGraphicsRootDescriptorTable(1, m_voxelGrid->GetSRV_G());
-                CommandList->SetGraphicsRootDescriptorTable(2, m_CascadeResources[m_currCascadeResIdx][0].srvHandle.GpuHandle);
+                // root param 2-6: t1-t5 cascade 0-4
+                for (int lv = 0; lv < 5; lv++)
+                {
+                    CommandList->SetGraphicsRootDescriptorTable(2 + lv,
+                        m_CascadeResources[m_currCascadeResIdx][lv].srvHandle.GpuHandle);
+                }
+                // root param 7: b1 debug constants
+                // Update debug camera from keyboard
+                {
+                    float moveSpeed = 0.5f;
+                    float rotSpeed  = 0.03f;
+                    float fwdX = cos(dbgCamPitch) * sin(dbgCamYaw);
+                    float fwdY = sin(dbgCamPitch);
+                    float fwdZ = cos(dbgCamPitch) * cos(dbgCamYaw);
+                    float rightX = cos(dbgCamYaw);
+                    float rightZ = -sin(dbgCamYaw);
+
+                    if (GetAsyncKeyState('W') & 0x8000) { dbgCamPosX += fwdX * moveSpeed; dbgCamPosY += fwdY * moveSpeed; dbgCamPosZ += fwdZ * moveSpeed; }
+                    if (GetAsyncKeyState('S') & 0x8000) { dbgCamPosX -= fwdX * moveSpeed; dbgCamPosY -= fwdY * moveSpeed; dbgCamPosZ -= fwdZ * moveSpeed; }
+                    if (GetAsyncKeyState('A') & 0x8000) { dbgCamPosX -= rightX * moveSpeed; dbgCamPosZ -= rightZ * moveSpeed; }
+                    if (GetAsyncKeyState('D') & 0x8000) { dbgCamPosX += rightX * moveSpeed; dbgCamPosZ += rightZ * moveSpeed; }
+                    if (GetAsyncKeyState('Q') & 0x8000) { dbgCamPosY -= moveSpeed; }
+                    if (GetAsyncKeyState('E') & 0x8000) { dbgCamPosY += moveSpeed; }
+                    if (GetAsyncKeyState(VK_LEFT)  & 0x8000) dbgCamYaw -= rotSpeed;
+                    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) dbgCamYaw += rotSpeed;
+                    if (GetAsyncKeyState(VK_UP)    & 0x8000) dbgCamPitch += rotSpeed;
+                    if (GetAsyncKeyState(VK_DOWN)  & 0x8000) dbgCamPitch -= rotSpeed;
+                }
+                struct { UINT level; float yaw; float pitch; float px; float py; float pz; } dbg;
+                dbg.level = 4;
+                dbg.yaw   = dbgCamYaw;
+                dbg.pitch = dbgCamPitch;
+                dbg.px    = dbgCamPosX;
+                dbg.py    = dbgCamPosY;
+                dbg.pz    = dbgCamPosZ;
+                CommandList->SetGraphicsRoot32BitConstants(7, 6, &dbg, 0);
 
                 CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 CommandList->IASetVertexBuffers(0, 0, nullptr);
@@ -2007,12 +2053,12 @@ void DXRender::InitGIContent()
 
     for (int idx = 0; idx < 2; ++idx)
     {
-
+        int probeSize = 3;
+        int res[3] = { 32,32,48 };
         
         for(int i = 0; i < 5; ++i)
         {
-            int probeSize = 3;
-            int res[3] = { 32,32,48 };
+
 		    m_CascadeResources[idx][i].spatialRes[0] = res[0];
             m_CascadeResources[idx][i].spatialRes[1] = res[1];
             m_CascadeResources[idx][i].spatialRes[2] = res[2];

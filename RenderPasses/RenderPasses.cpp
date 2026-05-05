@@ -336,6 +336,16 @@ void GI_ViewPass::Init(ID3D12Device* device)
     rootSigBuilder.AddSRVDescriptorTable(0, 1, D3D12_SHADER_VISIBILITY_PIXEL);
     // Index 2: t1 cascade0 (StructuredBuffer)
     rootSigBuilder.AddSRVDescriptorTable(1, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 3: t2 cascade1
+    rootSigBuilder.AddSRVDescriptorTable(2, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 4: t3 cascade2
+    rootSigBuilder.AddSRVDescriptorTable(3, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 5: t4 cascade3
+    rootSigBuilder.AddSRVDescriptorTable(4, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 6: t5 cascade4
+    rootSigBuilder.AddSRVDescriptorTable(5, 1, D3D12_SHADER_VISIBILITY_PIXEL);
+    // Index 7: b1 debug constants (6 x 32-bit: level, yaw, pitch, posX, posY, posZ)
+    rootSigBuilder.Add32BitConstants(1, 6, 0);
     m_RootSig = rootSigBuilder.Build(device);
 
     auto VS = DXShaderManager::GetInstance().CreateOrFindShader(

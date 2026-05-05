@@ -6,6 +6,8 @@ static const int HEMI_COUNT = 6;
 static const int RAY_COUNT = 9; // 3×3
 static const int RAYS_PER_VOXEL = HEMI_COUNT * RAY_COUNT; // 54
 static const float PI = 3.14159265;
+static const float3 SUN_DIR = normalize(float3(0.5, 1.0, -0.3));
+static const float3 SUN_COLOR = float3(2.0, 1.5, 1.25);
 
 
 //  0:-X  1:+X  2:-Y  3:+Y  4:-Z  5:+Z
@@ -98,7 +100,8 @@ float4 TraceRay(float3 origin, float3 dir)
     int3 step = int3(sign(dir));
     float3 tDelta = abs(invDir);
     float3 tNext = (float3(cell) + step * 0.5 - origin) * invDir;
-    
+    int3 hitNormalSign = int3(0, 0, 0);
+
     for (int i = 0; i < 128; i++)
     {
         if (t > tFar)
@@ -106,37 +109,42 @@ float4 TraceRay(float3 origin, float3 dir)
         if (any(cell < 0) || cell.x >= VOXEL_RES.x ||
             cell.y >= VOXEL_RES.y || cell.z >= VOXEL_RES.z)
             break;
-        
+
         float4 voxel = voxelGrid.Load(int4(cell, 0));
-        
+
         if (voxel.w > 0.5)
         {
             // 命中自发光（w=2）→ 返回发光色
             if (voxel.w > 1.5)
                 return float4(voxel.xyz, t);
-            
-            // 命中普通固体（w=1）→ 暂时返回 0
-            // 后面加 multibounce 时这里会读上一帧的间接光
-            return float4(0, 0, 0, t);
+
+            // 命中普通固体 → 直接光
+            float3 N = normalize(float3(hitNormalSign));
+            float NdotL = max(dot(N, SUN_DIR), 0.0);
+            return float4(voxel.xyz * SUN_COLOR * NdotL, t);
         }
-        
+
         // DDA 步进
+        hitNormalSign = int3(0, 0, 0);
         if (tNext.x < tNext.y && tNext.x < tNext.z)
         {
             t = tNext.x;
             tNext.x += tDelta.x;
+            hitNormalSign.x = -step.x;
             cell.x += step.x;
         }
         else if (tNext.y < tNext.z)
         {
             t = tNext.y;
             tNext.y += tDelta.y;
+            hitNormalSign.y = -step.y;
             cell.y += step.y;
         }
         else
         {
             t = tNext.z;
             tNext.z += tDelta.z;
+            hitNormalSign.z = -step.z;
             cell.z += step.z;
         }
     }
