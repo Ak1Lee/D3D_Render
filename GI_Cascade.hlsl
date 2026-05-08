@@ -3,24 +3,32 @@ StructuredBuffer<float4> upperCascade : register(t1);
 RWStructuredBuffer<float4> currCascade : register(u0);
 cbuffer GICascadeCB : register(b0)
 {
-    int3 spatialRes;        // 当前级空间分辨率 4-2 2 3
+    int3 spatialRes;        // 当前级空间分辨率
     int probeSize;          // 当前级 probe 边长
     int3 upperSpatialRes;   // 上一级空间分辨率
     int upperProbeSize;     // 上一级 probe 边长
     int cascadeLevel;       // 0~4
     float lodFactor;        // pow(2, level) = 1, 2, 4, 8, 16
+    float iTime;            // 运行时间 (秒)
 }
 StructuredBuffer<float4> preFrameCascade0 : register(t2);
 
 
 static int HEMI_COUNT = 6;
 static float PI = 3.14159265;
-static const float3 SUN_DIR = normalize(float3(0.5, 1.0, -0.3));
 static const float3 SUN_COLOR = float3(2.0, 1.5, 1.25);
 
-bool IsShadowed(float3 origin)
+float3 GetSunDir(float t)
 {
-    float3 dir = SUN_DIR;
+    float aniT = t * (1.0 - exp(-t * 0.2));
+    float sunA = aniT * (2.0 * PI / 16.0) + 1.15;
+    float sunT = (pow(cos(aniT * (2.0 * PI / 16.0) * 0.25), 5.0) * 0.5 + 0.5) * 2.0 + 0.2;
+    return normalize(float3(sin(sunA), sunT, cos(sunA)));
+}
+
+bool IsShadowed(float3 origin, float3 sunDir)
+{
+    float3 dir = sunDir;
     float3 invDir;
     invDir.x = (abs(dir.x) < 1e-8) ? 1e10 : 1.0 / dir.x;
     invDir.y = (abs(dir.y) < 1e-8) ? 1e10 : 1.0 / dir.y;
@@ -158,7 +166,7 @@ float ComputeWeight(int rayIndex, int pSize, float3 dir, float3 N)
     return solidAngle * cosTheta;
 }
 
-#define TRILINEAR_INTEGRATE 0  // 1=三线性插值采样上一帧Cascade0  0=单点采样
+#define TRILINEAR_INTEGRATE 1  // 1=三线性插值采样上一帧Cascade0  0=单点采样
 
 // 周围圆环 (45度 < Theta < 90度) 的完整积分也为 PI / 2
 // 我们提前将公式中的除以 PI (反照率 Albedo/PI 的 Lambert 公式) 塞了进去：
@@ -236,7 +244,7 @@ float3 IntegrateVoxelTrilinear(float3 worldPos, float3 normal)
     return weightSum > 0 ? result / weightSum : result;
 }
 
-float4 TraceRay(float3 origin, float3 dir)
+float4 TraceRay(float3 origin, float3 dir, float3 sunDir)
 {
     // 安全倒数：防止 dir 分量为 0 产生 INF/NaN
     // 注意：sign(0)=0 在 HLSL 中！所以用 1e10 而非 sign()*1e10
@@ -295,10 +303,10 @@ float4 TraceRay(float3 origin, float3 dir)
             int3 probePosForPrevFrame = cell + hitNormalSign;
             float3 indirect = IntegrateVoxel(probePosForPrevFrame, hitNorm);
 #endif
-            float NdotL = max(dot(hitNorm, SUN_DIR), 0);
+            float NdotL = max(dot(hitNorm, sunDir), 0);
             float shadow = 1.0;
             if (NdotL > 0)
-                shadow = IsShadowed(hitPos + hitNorm * 0.5) ? 0.0 : 1.0;
+                shadow = IsShadowed(hitPos + hitNorm * 0.5, sunDir) ? 0.0 : 1.0;
             return float4(voxel.xyz * (indirect + SUN_COLOR * NdotL * shadow), t);
         }
 
@@ -408,68 +416,87 @@ float4 SampleUpperCascade(float3 worldPos, int rayIndex, int hemi)
     return float4(total, 1.0);
 }
 
+#define FLAT_RAY_LEVEL 3  // level >= this uses flat ray indexing (1 thread = 1 ray)
+
+void ProcessRay(int3 voxelPos, float3 voxelWorldPos, int hemi, int ray, int raysPerHemi, float3 sunDir)
+{
+    float3 N = HEMI_N[hemi];
+    float3 T = HEMI_T[hemi];
+    float3 B = HEMI_B[hemi];
+    float3 probePos = voxelWorldPos - N * 0.25;
+
+    float3 dir = ComputeDir(ray, probeSize, N, T, B);
+    float4 rayResult = TraceRay(probePos, dir, sunDir);
+
+    float weight = ComputeWeight(ray, probeSize, dir, N);
+
+    if (cascadeLevel < 4)
+    {
+        float4 upperLight = SampleUpperCascade(voxelWorldPos, ray, hemi);
+        float distInterp = clamp((rayResult.w - lodFactor) / lodFactor * 0.5, 0.0, 1.0);
+        rayResult.xyz = lerp(rayResult.xyz, upperLight.xyz, distInterp) * 1.0;
+    }
+
+    currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, hemi, ray)] = rayResult;
+}
+
 [numthreads(64, 1, 1)]
 void CSMain(uint3 dtid : SV_DispatchThreadID)
 {
+    int raysPerHemi = probeSize * probeSize;
     int totalXY = spatialRes.x * spatialRes.y;
-    
+
     int3 voxelPos;
-    // dtid.x -> pos.xy，dtid.y -> pos.z
-    voxelPos.x = dtid.x % spatialRes.x;
-    voxelPos.y = dtid.x / spatialRes.x;
-    voxelPos.z = dtid.y;
-    
-    if(dtid.x >= totalXY || voxelPos.z >= spatialRes.z)
-        return;
-    
+    int hemiStart, hemiEnd, rayStart, rayEnd;
+
+    if (cascadeLevel >= FLAT_RAY_LEVEL)
+    {
+        // Flat ray indexing: 1 thread = 1 ray, full GPU occupancy
+        uint flatIdx = dtid.x;
+        uint totalRays = totalXY * spatialRes.z * HEMI_COUNT * raysPerHemi;
+        if (flatIdx >= totalRays) return;
+
+        uint raysPerVoxel = HEMI_COUNT * raysPerHemi;
+        uint voxelFlatIdx = flatIdx / raysPerVoxel;
+        uint hemiAndRay  = flatIdx % raysPerVoxel;
+        hemiStart = hemiAndRay / raysPerHemi;
+        hemiEnd   = hemiStart + 1;
+        rayStart  = hemiAndRay % raysPerHemi;
+        rayEnd    = rayStart + 1;
+
+        voxelPos.z = voxelFlatIdx / totalXY;
+        uint xy    = voxelFlatIdx % totalXY;
+        voxelPos.y = xy / spatialRes.x;
+        voxelPos.x = xy % spatialRes.x;
+    }
+    else
+    {
+        // Original: 1 thread = 1 voxel, iterate all rays
+        voxelPos.x = dtid.x % spatialRes.x;
+        voxelPos.y = dtid.x / spatialRes.x;
+        voxelPos.z = dtid.y;
+
+        if (dtid.x >= totalXY || voxelPos.z >= spatialRes.z)
+            return;
+
+        hemiStart = 0; hemiEnd = HEMI_COUNT;
+        rayStart  = 0; rayEnd  = raysPerHemi;
+    }
+
     float3 voxelWorldPos = (float3(voxelPos) + 0.5) * lodFactor;
-    
-    float4 currGridInfo = voxelGrid.Load(int4(floor(voxelWorldPos), 0));
-    
-    
+    float4 currGridInfo  = voxelGrid.Load(int4(floor(voxelWorldPos), 0));
+
     if (currGridInfo.w > 0.5)
     {
-        // in the block ?
-        int raysPerHemi = probeSize * probeSize;
-        for(int hemi = 0; hemi < HEMI_COUNT; ++hemi)
-        {
-            for (int ray = 0; ray < raysPerHemi; ++ray)
-            {
-                int index = CascadeIndex(voxelPos, spatialRes, raysPerHemi, hemi, ray);
-                currCascade[index] = float4(0, 0, 0, 0);
-            }
-        }
+        for (int h = hemiStart; h < hemiEnd; ++h)
+            for (int r = rayStart; r < rayEnd; ++r)
+                currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, h, r)] = float4(0, 0, 0, 0);
         return;
-    };
-    // how many rays per hemi?
-    int raysPerHemi = probeSize * probeSize;
-
-    // ===== 调试：正常跑 ray tracing，然后 dump 左右探针的 TraceRay 原始结果 =====
-    // 正常的 hemi/ray 循环在下面...
-    for (int hemi = 0; hemi < HEMI_COUNT; ++hemi)
-    {
-        float3 N = HEMI_N[hemi];
-        float3 T = HEMI_T[hemi];
-        float3 B = HEMI_B[hemi];
-
-        float3 probePos = voxelWorldPos - N * 0.25;
-        for (int ray = 0; ray < raysPerHemi; ++ray)
-        {
-            float3 dir = ComputeDir(ray, probeSize, N, T, B);
-            float4 rayResult = TraceRay(probePos, dir);
-
-            float weight = ComputeWeight(ray, probeSize, dir, N);
-            // rayResult.xyz = rayResult.xyz * weight;  // 存储时不加权，读取时用 CASC0_WEIGHT 积分
-
-            if (cascadeLevel < 4)
-            {
-                float4 upperLight = SampleUpperCascade(voxelWorldPos, ray, hemi);
-                float distInterp = clamp((rayResult.w - lodFactor) / lodFactor * 0.5, 0.0, 1.0);
-                rayResult.xyz = lerp(rayResult.xyz, upperLight.xyz, distInterp) * 1.0;
-            }
-
-            currCascade[CascadeIndex(voxelPos, spatialRes, raysPerHemi, hemi, ray)]
-                = rayResult;
-        }
     }
+
+    float3 sunDir = GetSunDir(iTime);
+
+    for (int h = hemiStart; h < hemiEnd; ++h)
+        for (int r = rayStart; r < rayEnd; ++r)
+            ProcessRay(voxelPos, voxelWorldPos, h, r, raysPerHemi, sunDir);
 }

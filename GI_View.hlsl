@@ -1,9 +1,9 @@
 Texture3D<float4> voxelGrid : register(t0);
 StructuredBuffer<float4> cascade0 : register(t1);
-StructuredBuffer<float4> cascade1 : register(t2);
-StructuredBuffer<float4> cascade2 : register(t3);
-StructuredBuffer<float4> cascade3 : register(t4);
-StructuredBuffer<float4> cascade4 : register(t5);
+// StructuredBuffer<float4> cascade1 : register(t2);
+// StructuredBuffer<float4> cascade2 : register(t3);
+// StructuredBuffer<float4> cascade3 : register(t4);
+// StructuredBuffer<float4> cascade4 : register(t5);
 
 // 与 C++ 端 LightConstants 布局一致（复用 LightConstantBuffer）
 cbuffer LightCB : register(b0)
@@ -28,6 +28,7 @@ cbuffer DebugCB : register(b1)
     float dbgCamPosX;
     float dbgCamPosY;
     float dbgCamPosZ;
+    float giTime;           // 运行时间 (秒)
 };
 
 struct VSOut { float4 Pos : SV_Position; };
@@ -59,10 +60,10 @@ float4 ReadCascade(int index)
     switch (debugCascadeLevel)
     {
         case 0: return cascade0[index];
-        case 1: return cascade1[index];
-        case 2: return cascade2[index];
-        case 3: return cascade3[index];
-        case 4: return cascade4[index];
+        // case 1: return cascade1[index];
+        // case 2: return cascade2[index];
+        // case 3: return cascade3[index];
+        // case 4: return cascade4[index];
         default: return float4(0, 0, 0, 0);
     }
 }
@@ -167,12 +168,19 @@ float3 SampleIndirectTrilinear(float3 worldPos, float3 normal)
 //   2 = N·L 灰度（独立检查法线方向）
 #define VIZ_MODE 0
 #define TRILINEAR_SAMPLE 0  // 0=单点采样 1=三线性插值
-static const float3 SUN_DIR = normalize(float3(0.5, 1.0, -0.3));
 static const float3 SUN_COLOR = float3(2.0, 1.5, 1.25);
 
-bool IsShadowed(float3 origin)
+float3 GetSunDir(float t)
 {
-    float3 dir = SUN_DIR;
+    float aniT = t * (1.0 - exp(-t * 0.2));
+    float sunA = aniT * (2.0 * 3.14159265 / 16.0) + 1.15;
+    float sunT = (pow(cos(aniT * (2.0 * 3.14159265 / 16.0) * 0.25), 5.0) * 0.5 + 0.5) * 2.0 + 0.2;
+    return normalize(float3(sin(sunA), sunT, cos(sunA)));
+}
+
+bool IsShadowed(float3 origin, float3 sunDir)
+{
+    float3 dir = sunDir;
     float3 invDir;
     invDir.x = (abs(dir.x) < 1e-8) ? 1e10 : 1.0 / dir.x;
     invDir.y = (abs(dir.y) < 1e-8) ? 1e10 : 1.0 / dir.y;
@@ -342,11 +350,12 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target
 #if TRILINEAR_SAMPLE
             float3 indirect = SampleIndirectTrilinear(surfacePos + normal * 0.25, normal);
 #else
-            int3 probePos = cell + hitNormalSign;
+            int3 probePos = cell + hitNormalSign * 1.5;
             float3 indirect = SampleIndirect(probePos, normal);
 #endif
-            float NdotL = max(dot(normal, SUN_DIR), 0);
-            float shadow = (NdotL > 0 && IsShadowed(surfacePos + normal * 0.5)) ? 0.0 : 1.0;
+            float3 sunDir = GetSunDir(giTime);
+            float NdotL = max(dot(normal, sunDir), 0);
+            float shadow = (NdotL > 0 && IsShadowed(surfacePos + normal * 0.5, sunDir)) ? 0.0 : 1.0;
             float3 direct = SUN_COLOR * NdotL * shadow;
             float3 color = voxel.xyz * (indirect + direct);
             

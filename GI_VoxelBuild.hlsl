@@ -164,7 +164,7 @@ float4 Scene_RCSample(float3 vPos)
         info = float4(stoneColor, 1);
 
     // ===== 动态球体（固定位置）=====
-    if (length(vPos - float3(8, 24, 8)) < 4)
+    if (length(vPos - float3(27, 24, 8)) < 4)
         info = float4(0.5, 0.6, 0.9, 1);
 
     return info;

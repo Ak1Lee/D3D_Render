@@ -22,8 +22,8 @@
 #include "RenderPasses/RenderPasses.h"
 
 constexpr unsigned int FrameBufferCount = 2;
-inline unsigned int Width = 1920;
-inline unsigned int Height = 1080;
+inline unsigned int Width = 1920*0.75;
+inline unsigned int Height = 1080 * 0.75;
 
 
 
@@ -377,6 +377,7 @@ private:
 
     // GI
 	bool bEnableGITest = true;
+	float m_GITime = 0.0f;
     std::shared_ptr<Texture> m_voxelGrid;
 	int voxelGridWidth = 32;
 	int voxelGridHeight = 32;
