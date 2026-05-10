@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <d3d12.h>
 
@@ -92,7 +92,7 @@ class MaterialManager
 	}
 
 	void AddMaterial(std::shared_ptr<Material> InMaterial) {
-		Materials[InMaterial->GetName()] = InMaterial;
+		Materials[InMaterial->GetName()] = std::move(InMaterial);
 	}
 
 	int InitAllMaterial();
