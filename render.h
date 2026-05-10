@@ -376,7 +376,7 @@ private:
 
 
     // GI
-	bool bEnableGITest = true;
+	bool bEnableGITest = false;
 	float m_GITime = 0.0f;
     std::shared_ptr<Texture> m_voxelGrid;
 	int voxelGridWidth = 32;

@@ -30,18 +30,27 @@ public:
 	//Microsoft::WRL::ComPtr<ID3D12PipelineState> GetPSO() { return m_pso; }
 	std::string GetName() { return Name; }
 
-	void SetAlbedoTexture(std::shared_ptr<Texture> InTexture) { AlbedoTexture = InTexture; }
-	void SetNormalTexture(std::shared_ptr<Texture> InTexture) { NormalTexture = InTexture; }
-	void SetMetallicTexture(std::shared_ptr<Texture> InTexture) { MetallicTexture = InTexture; }
+	void SetAlbedoTexture(std::shared_ptr<Texture> InTexture) { 
+		AlbedoTexture = InTexture; 
+		m_AlbedoTextureWptr = InTexture; 
+	}
+	void SetNormalTexture(std::shared_ptr<Texture> InTexture) {
+		NormalTexture = InTexture; 
+		m_NormalTextureWptr = InTexture;
+	}
+	void SetMetallicTexture(std::shared_ptr<Texture> InTexture) {
+		MetallicTexture = InTexture; 
+		m_MetallicTextureWptr = InTexture;
+	}
 
 	bool HasAlbedoTexture() const { return AlbedoTexture != nullptr; }
 	bool HasNormalTexture() const { return NormalTexture != nullptr; }
 	bool HasMetallicTexture() const { return MetallicTexture != nullptr; }
 
 	const MaterialConstants& GetConstantData() const { return ConstantData; }
-	std::shared_ptr<Texture> GetAlbedoTexture() const { return AlbedoTexture; }
-	std::shared_ptr<Texture> GetNormalTexture() const { return NormalTexture; }
-	std::shared_ptr<Texture> GetMetallicTexture() const { return MetallicTexture; }
+	std::shared_ptr<Texture> GetAlbedoTexture() const { return m_AlbedoTextureWptr.lock(); }
+	std::shared_ptr<Texture> GetNormalTexture() const { return m_NormalTextureWptr.lock(); }
+	std::shared_ptr<Texture> GetMetallicTexture() const { return m_MetallicTextureWptr.lock(); }
 
 	
 private:
@@ -54,6 +63,10 @@ private:
 	std::shared_ptr<Texture> AlbedoTexture;
 	std::shared_ptr<Texture> NormalTexture;
 	std::shared_ptr<Texture> MetallicTexture;
+
+	std::weak_ptr<Texture> m_AlbedoTextureWptr;
+	std::weak_ptr<Texture> m_NormalTextureWptr;
+	std::weak_ptr<Texture> m_MetallicTextureWptr;
 
 
 
