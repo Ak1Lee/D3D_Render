@@ -22,6 +22,9 @@
     <Filter Include="源文件\RenderPasses">
       <UniqueIdentifier>{df92dcad-5a29-4169-919f-d7c94ba53e32}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\Resource">
+      <UniqueIdentifier>{49f8be7a-8cc0-467a-a92d-583c0e656e76}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EditorUI.cpp">
@@ -104,6 +107,9 @@
     </ClCompile>
     <ClCompile Include="RenderPasses\RenderPasses.cpp">
       <Filter>源文件\RenderPasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Resource\GPUResource.cpp">
+      <Filter>源文件\Resource</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -193,6 +199,9 @@
     </ClInclude>
     <ClInclude Include="RenderPasses\RenderPasses.h">
       <Filter>头文件\RenderPasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource\GPUResource.h">
+      <Filter>头文件\Resource</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

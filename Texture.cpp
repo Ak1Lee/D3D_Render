@@ -172,7 +172,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	else
 		TexDesc.DepthOrArraySize = ArraySize;
 	TexDesc.MipLevels = MipLevels;
-	TexDesc.Format = GetTypelessFormat(Format); // 銆愬叧閿€戣祫婧愭湰韬鏄?Typeless
+	TexDesc.Format = GetTypelessFormat(Format); //本身要是 Typeless
 	TexDesc.SampleDesc.Count = 1;
 	TexDesc.SampleDesc.Quality = 0;
 	TexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -183,14 +183,14 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 	if (HasFlag(ViewFlags, TextureViewFlags::RTV))
 	{
 		optClear.Format = Format;
-		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // 榛樿涓洪粦鑹?
+		memcpy(optClear.Color, m_ClearColor, sizeof(float) * 4); // 默认为黑色
 		pClearValue = &optClear;
 	}
 	else if(HasFlag(ViewFlags, TextureViewFlags::DSV))
 	{
 		optClear.Format = GetDSVFormat(Format);
-		optClear.DepthStencil.Depth = m_ClearDepth;   // 榛樿涓?1.0f
-		optClear.DepthStencil.Stencil = m_ClearStencil; // 榛樿涓?0
+		optClear.DepthStencil.Depth = m_ClearDepth;   // 默认为 1.0f
+		optClear.DepthStencil.Stencil = m_ClearStencil; // 默认为 0
 		pClearValue = &optClear;
 	}
 	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
@@ -203,7 +203,7 @@ void Texture::Create(ID3D12GraphicsCommandList* CmdList, const TextureDesc& Desc
 		D3D12_HEAP_FLAG_NONE,
 		&TexDesc,
 		initialState,
-		pClearValue, // 濡傛灉涓嶆槸 RT/DSV锛岃繖閲屽繀椤绘槸 nullptr
+		pClearValue, // 如果不是 RT/DSV，这里必须是 nullptr
 		IID_PPV_ARGS(&Resource)
 	);
 
@@ -261,6 +261,8 @@ void Texture::CreateSRV(ID3D12Device* Device,
 
 
 }
+
+
 
 void Texture::CreateSRV(ID3D12Device* Device)
 {

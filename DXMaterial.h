@@ -67,22 +67,6 @@ private:
 	std::weak_ptr<Texture> m_AlbedoTextureWptr;
 	std::weak_ptr<Texture> m_NormalTextureWptr;
 	std::weak_ptr<Texture> m_MetallicTextureWptr;
-
-
-
-	
-	// old method
-	//Microsoft::WRL::ComPtr<ID3D12RootSignature> m_rootSignature;
-	//Microsoft::WRL::ComPtr<ID3D12PipelineState> m_pso;
-	//D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc;
-	//bool bInit = false;
-	//bool bDirty = true;
-	//Microsoft::WRL::ComPtr<ID3D12Resource> ConstantBuffer;
-	//UINT8* pCbvDataBegin = nullptr;
-
-	//D3D12_CPU_DESCRIPTOR_HANDLE CpuCbvHandle; // 锟斤拷锟斤拷 View 锟斤拷
-	//D3D12_GPU_DESCRIPTOR_HANDLE GpuCbvHandle; // Bind 锟斤拷
-	//unsigned int DescriptorIndex = 0;
 };
 
 class MaterialManager
