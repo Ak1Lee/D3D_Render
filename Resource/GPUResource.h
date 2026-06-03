@@ -3,11 +3,12 @@
 #include <d3d12.h>
 #include <wrl.h>
 #include "d3dx12.h"
+#include "dxUtils.h"
 #include <DescriptorAllocator.h>
 
 class GPUResource
 {
-public:
+public: 
 	GPUResource() = default;
 	GPUResource(const std::string& InName);
 	virtual ~GPUResource() = default;
@@ -64,6 +65,8 @@ public:
 	UINT GetElementSize() const { return m_ElementSize; }
 
 protected:
-	UINT m_ElementCount;
-	UINT m_ElementSize;
-}
+	UINT m_ElementCount = 0;
+	UINT m_ElementSize = 0;
+};
+
+

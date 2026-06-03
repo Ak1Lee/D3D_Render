@@ -164,6 +164,7 @@
     <ClCompile Include="render.cpp" />
     <ClCompile Include="RenderPasses\IRenderPass.cpp" />
     <ClCompile Include="RenderPasses\RenderPasses.cpp" />
+    <ClCompile Include="Resource\ConstantBuffer.cpp" />
     <ClCompile Include="Resource\GPUResource.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Timer.cpp" />
@@ -198,6 +199,7 @@
     <ClInclude Include="RenderPass.h" />
     <ClInclude Include="RenderPasses\IRenderPass.h" />
     <ClInclude Include="RenderPasses\RenderPasses.h" />
+    <ClInclude Include="Resource\ConstantBuffer.h" />
     <ClInclude Include="Resource\GPUResource.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="Texture.h" />

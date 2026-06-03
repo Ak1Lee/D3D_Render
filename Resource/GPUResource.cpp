@@ -39,7 +39,7 @@ void GPUResource::BindSRV_Graphics(ID3D12GraphicsCommandList* CmdList, UINT Root
 
 void GPUResource::BindSRV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootParamIndex)
 {
-	TransitionTo(CmdList, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	TransitionTo(CmdList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, m_SRVHandle.GpuHandle);
 }
 
@@ -49,13 +49,12 @@ void GPUResource::BindUAV_Compute(ID3D12GraphicsCommandList* CmdList, UINT RootP
 	CmdList->SetComputeRootDescriptorTable(RootParamIndex, m_UAVHandle.GpuHandle);
 }
 
-void StructuredBuffer::Create(ID3D12Device* device, UINT elementCount, UINT elementSize, D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS,std::string name = "default name")
+void StructuredBuffer::Create(ID3D12Device* device, UINT elementCount, UINT elementSize, D3D12_RESOURCE_STATES initialState, std::string name)
 {
 	m_ElementCount = elementCount;
 	m_ElementSize = elementSize;
 	m_CurrentState = initialState;
 	m_Name = name;
-	m_Resource.Get()->SetName(std::wstring(m_Name.begin(), m_Name.end()).c_str());
 
 	D3D12_RESOURCE_DESC desc = {};
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -74,6 +73,8 @@ void StructuredBuffer::Create(ID3D12Device* device, UINT elementCount, UINT elem
 		&heapProps, D3D12_HEAP_FLAG_NONE,
 		&desc, initialState,
 		nullptr, IID_PPV_ARGS(&m_Resource));
+
+	m_Resource->SetName(std::wstring(m_Name.begin(), m_Name.end()).c_str());
 }
 void StructuredBuffer::CreateSRV(ID3D12Device* device)
 {
@@ -117,22 +118,22 @@ void StructuredBuffer::CreateViews(ID3D12Device* device)
 //srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 //Device::GetInstance().GetD3DDevice()->CreateShaderResourceView(
 //	m_Cascade0Buffer.Get(), &srvDesc, m_Cascade0SRV.CpuHandle);
-class Texture : public GPUResource
-{
-public:
-	void Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, std::string name = "default name");
-	void CreateSRV(ID3D12Device* device);
-	void CreateUAV(ID3D12Device* device);
-	void CreateViews(ID3D12Device* device);
-	UINT GetWidth() const { return m_Width; }
-	UINT GetHeight() const { return m_Height; }
-	DXGI_FORMAT GetFormat() const { return m_Format; }
-
-protected:
-	UINT m_Width;
-	UINT m_Height;
-
-	UINT m_MipLevels = 1;
-	UINT m_ArraySize = 1;
-	DXGI_FORMAT m_Format;
-};
+//class Texture : public GPUResource
+//{
+//public:
+//	void Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON, std::string name = "default name");
+//	void CreateSRV(ID3D12Device* device);
+//	void CreateUAV(ID3D12Device* device);
+//	void CreateViews(ID3D12Device* device);
+//	UINT GetWidth() const { return m_Width; }
+//	UINT GetHeight() const { return m_Height; }
+//	DXGI_FORMAT GetFormat() const { return m_Format; }
+//
+//protected:
+//	UINT m_Width;
+//	UINT m_Height;
+//
+//	UINT m_MipLevels = 1;
+//	UINT m_ArraySize = 1;
+//	DXGI_FORMAT m_Format;
+//};

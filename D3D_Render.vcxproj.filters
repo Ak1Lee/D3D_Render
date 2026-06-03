@@ -111,6 +111,9 @@
     <ClCompile Include="Resource\GPUResource.cpp">
       <Filter>源文件\Resource</Filter>
     </ClCompile>
+    <ClCompile Include="Resource\ConstantBuffer.cpp">
+      <Filter>源文件\Resource</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EditorUI.h">
@@ -201,6 +204,9 @@
       <Filter>头文件\RenderPasses</Filter>
     </ClInclude>
     <ClInclude Include="Resource\GPUResource.h">
+      <Filter>头文件\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource\ConstantBuffer.h">
       <Filter>头文件\Resource</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1474,15 +1474,12 @@ void DXRender::InitPasses_new()
                 DirectX::XMVECTOR det;
                 DirectX::XMMATRIX InvVP = DirectX::XMMatrixInverse(&det, VP);
                 XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, DirectX::XMMatrixTranspose(InvVP));
-                if (CurrFrameResource.LightConstantBufferMappedData)
-                {
-                    memcpy(CurrFrameResource.LightConstantBufferMappedData,
-                        &LightConstantInstance, sizeof(LightConstants));
-                }
+
+                CurrFrameResource.m_LightConstant.UpdateData(LightConstantInstance);
 
                 // PassManager 已设过 RootSig + PSO（graphics 路径）
                 CommandList->SetGraphicsRootConstantBufferView(0,
-                    CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                    CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
                 // root param 1: t0 voxelGrid
                 CommandList->SetGraphicsRootDescriptorTable(1, m_voxelGrid->GetSRV_G());
                 // root param 2-6: t1-t5 cascade 0-4
@@ -1568,10 +1565,9 @@ void DXRender::InitPasses_new()
                     DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
                     DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
                     // MeshElement->UpdateObjectConstantBuffer(objConstants);
-                    memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-
+                    CurrFrameResource.m_ObjectConstant.UpdateData(objConstants, i);
                     // cbv
-                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_ObjectConstant.GetGPUVirtualAddress(i));
 
                     CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     auto VertexBufferView = MeshElement->GetVertexBufferView();
@@ -1629,7 +1625,7 @@ void DXRender::InitPasses_new()
             }
             // 替换为CBV
             //CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
-            CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+            CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
             // XMStoreFloat4x4(&shadowConstants.WorldViewProj, XMMatrixTranspose(MVP));
             XMStoreFloat4x4(&LightConstantInstance.LightViewProj, XMMatrixTranspose(lightViewProj));
             const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
@@ -1644,8 +1640,8 @@ void DXRender::InitPasses_new()
                 ObjectConstants objConstants;
                 DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
                 DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
-                memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+                CurrFrameResource.m_ObjectConstant.UpdateData(objConstants, i);
+                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_ObjectConstant.GetGPUVirtualAddress(i));
                 // 绘制
                 CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 auto VBView = MeshElement->GetVertexBufferView();
@@ -1689,12 +1685,10 @@ void DXRender::InitPasses_new()
                 auto MainCameraPos = MainCamera.GetPosition();
                 LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
 
-                if (CurrFrameResource.LightConstantBufferMappedData)
-                {
-                    memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
-                }
+
+				CurrFrameResource.m_LightConstant.UpdateData(LightConstantInstance);
                 // CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
-                CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
 
                 const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
                 for (int i = 0; i < MeshList.size(); ++i)
@@ -1711,11 +1705,11 @@ void DXRender::InitPasses_new()
                         DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
                         // MeshElement->UpdateObjectConstantBuffer(objConstants);
 
-                        memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
+                        CurrFrameResource.m_ObjectConstant.UpdateData(objConstants, i);
+
                     }
 
-                    // 绑定 CBV
-                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_ObjectConstant.GetGPUVirtualAddress(i));
 
                     CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                     auto VertexBufferView = MeshElement->GetVertexBufferView();
@@ -1759,12 +1753,9 @@ void DXRender::InitPasses_new()
                 DirectX::XMVECTOR det;
                 DirectX::XMMATRIX InvViewProj = XMMatrixInverse(&det, ViewProj);
                 XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, XMMatrixTranspose(InvViewProj));
-
-                if (CurrFrameResource.LightConstantBufferMappedData)
-                {
-                    memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
-                }
-                CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+				
+                CurrFrameResource.m_LightConstant.UpdateData(LightConstantInstance);
+                CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
                 const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
                 const UINT MatConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
                 for (int i = 0; i < MeshList.size(); ++i)
@@ -1779,19 +1770,23 @@ void DXRender::InitPasses_new()
                         DirectX::XMStoreFloat4x4(&objConstants.WorldViewProj, DirectX::XMMatrixTranspose(MVPMatrix));
                         DirectX::XMStoreFloat4x4(&objConstants.World, DirectX::XMMatrixTranspose(M_Matrix));
                         // 更新帧资源的constantbuffer+idx偏移的数据
-                        memcpy(CurrFrameResource.ObjectConstantBufferMappedData + i * ObjConstantBufferSize, &objConstants, sizeof(objConstants));
-                        CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + i * ObjConstantBufferSize);
+                        CurrFrameResource.m_ObjectConstant.UpdateData(objConstants, i);
+                        CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_ObjectConstant.GetGPUVirtualAddress(i));
 
                         auto MaterialName = MeshElement->GetMaterialName();
                         Material* MaterialPtr = MaterialManager::GetInstance().GetMaterialByName(MaterialName);
 
-                        MaterialConstants matConstants;
                         if (MaterialPtr)
                         {
                             //MaterialPtr->Bind(CommandList);
                             //std::cout << "Binding Material: " << MaterialName << std::endl;
-                            memcpy(CurrFrameResource.MaterialConstantBufferMappedData + i * MatConstantBufferSize, &MaterialPtr->GetConstantData(), sizeof(matConstants));
-                            CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.MaterialConstantBuffer->GetGPUVirtualAddress() + i * MatConstantBufferSize);
+                            //memcpy(CurrFrameResource.MaterialConstantBufferMappedData + i * MatConstantBufferSize, &MaterialPtr->GetConstantData(), sizeof(matConstants));
+                            //CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.MaterialConstantBuffer->GetGPUVirtualAddress() + i * MatConstantBufferSize);
+
+                            CurrFrameResource.m_MaterialConstant.UpdateData(MaterialPtr->GetConstantData(), i);
+                            CommandList->SetGraphicsRootConstantBufferView(2, CurrFrameResource.m_MaterialConstant.GetGPUVirtualAddress(i));
+
+
                             if (MaterialPtr->HasAlbedoTexture())
                             {
                                 MaterialPtr->GetAlbedoTexture()->BindSRV_Graphics(CommandList, 8);
@@ -1874,11 +1869,9 @@ void DXRender::InitPasses_new()
                     DirectX::XMVECTOR det;
                     DirectX::XMMATRIX InvViewProj = XMMatrixInverse(&det, ViewProj);
                     XMStoreFloat4x4(&LightConstantInstance.CameraInvViewProj, XMMatrixTranspose(InvViewProj));
-                    if (CurrFrameResource.LightConstantBufferMappedData)
-                    {
-                        memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
-                    }
-                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                    
+					CurrFrameResource.m_LightConstant.UpdateData(LightConstantInstance);
+                    CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
                 }
                 {
                     m_GBuffer0->BindSRV_Graphics(CommandList, 1);
@@ -1924,12 +1917,8 @@ void DXRender::InitPasses_new()
                 SkyboxMesh->SetPosition(MainCameraPos.x, MainCameraPos.y, MainCameraPos.z);
                 LightConstantInstance.CameraPosition = { MainCameraPos.x, MainCameraPos.y,MainCameraPos.z };
 
-                if (CurrFrameResource.LightConstantBufferMappedData)
-                {
-                    memcpy(CurrFrameResource.LightConstantBufferMappedData, &LightConstantInstance, sizeof(LightConstants));
-                }
-                // CommandList->SetGraphicsRootDescriptorTable(1, LightCbvGpuHandle);
-                CommandList->SetGraphicsRootConstantBufferView(1, CurrFrameResource.LightConstantBuffer->GetGPUVirtualAddress());
+                CurrFrameResource.m_LightConstant.UpdateData(LightConstantInstance);
+                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_LightConstant.GetGPUVirtualAddress());
 
                 CommandList->SetGraphicsRootDescriptorTable(3, m_EnvCubeMap->GetSRV_G());
 
@@ -1944,11 +1933,8 @@ void DXRender::InitPasses_new()
                 const int SkyboxCBIndex = (int)MeshList.size();
                 const UINT ObjCBSize = (sizeof(ObjectConstants) + 255) & ~255;
 
-                memcpy(CurrFrameResource.ObjectConstantBufferMappedData + SkyboxCBIndex * ObjCBSize,
-                    &objConstants, sizeof(ObjectConstants));
-
-                CommandList->SetGraphicsRootConstantBufferView(0,
-                    CurrFrameResource.ObjectConstantBuffer->GetGPUVirtualAddress() + SkyboxCBIndex * ObjCBSize);
+                CurrFrameResource.m_ObjectConstant.UpdateData(objConstants, SkyboxCBIndex);
+                CommandList->SetGraphicsRootConstantBufferView(0, CurrFrameResource.m_ObjectConstant.GetGPUVirtualAddress(SkyboxCBIndex));
 
                 auto VBView = SkyboxMesh->GetVertexBufferView();
                 auto IBView = SkyboxMesh->GetIndexBufferView();
@@ -2234,48 +2220,21 @@ void FrameResource::Init(ID3D12Device* device, UINT maxObjectCount)
             0, D3D12_COMMAND_LIST_TYPE_DIRECT,
             PassCmdAllocators[i].Get(), nullptr,
             IID_PPV_ARGS(&PassCmdLists[i])));
-        // 创建出来是 open 状态，先 Close 等待 Draw 里再 Reset
         PassCmdLists[i]->Close();
     }
 
     // Light Constant Buffer
     const UINT LightConstantBufferSize = (sizeof(LightConstants) + 255) & ~255;
-
-    // 创建上传堆的常量缓冲资源
-    CD3DX12_HEAP_PROPERTIES LightHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(LightConstantBufferSize);
-    ThrowIfFailed(device->CreateCommittedResource(&LightHeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&LightConstantBuffer)));
-    // 2) 映射得到 CPU 可写指针
-    CD3DX12_RANGE ReadRange(0, 0);
-    LightConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&LightConstantBufferMappedData));
+    m_LightConstant.Create(device, "LightConstantBuffer");
 
 
     // Obj Constant Buffer
-    const UINT ObjConstantBufferSize = (sizeof(ObjectConstants) + 255) & ~255;
     const UINT MaxObjectNum = 128;
-    CD3DX12_HEAP_PROPERTIES ObjHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC ObjBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(ObjConstantBufferSize * MaxObjectNum);
-    ThrowIfFailed(device->CreateCommittedResource(&ObjHeapProps, D3D12_HEAP_FLAG_NONE, &ObjBufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&ObjectConstantBuffer)));
-    ObjectConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&ObjectConstantBufferMappedData));
+	m_ObjectConstant.Create(device, "ObjectConstantBuffer", MaxObjectNum);
 
 
 	// Material Constant Buffer
-	const UINT MaterialConstantBufferSize = (sizeof(MaterialConstants) + 255) & ~255;
     const UINT MaxMaterialNum = 128;
-
-    CD3DX12_HEAP_PROPERTIES MatHeapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC MatBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(MaterialConstantBufferSize * MaxMaterialNum);
-    ThrowIfFailed(device->CreateCommittedResource(&MatHeapProps, D3D12_HEAP_FLAG_NONE, &MatBufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&MaterialConstantBuffer)));
-    MaterialConstantBuffer->Map(0, &ReadRange, reinterpret_cast<void**>(&MaterialConstantBufferMappedData));
-
+	m_MaterialConstant.Create(device, "MaterialConstantBuffer", MaxMaterialNum);
 
 }

@@ -20,6 +20,7 @@
 #include <assimp/Importer.hpp>
 
 #include "RenderPasses/RenderPasses.h"
+#include "Resource/ConstantBuffer.h"
 
 constexpr unsigned int FrameBufferCount = 2;
 inline unsigned int Width = 1920*0.75;
@@ -102,16 +103,16 @@ struct FrameResource
     ComPtr<ID3D12GraphicsCommandList> PassCmdLists[PASS_COUNT];
 
     //LightCB
-    ComPtr<ID3D12Resource> LightConstantBuffer;
-    UINT8* LightConstantBufferMappedData = nullptr;
+    ConstantBuffer<LightConstants> m_LightConstant;
+
 
 	//ObjectCB
-    ComPtr<ID3D12Resource> ObjectConstantBuffer;
-    UINT8* ObjectConstantBufferMappedData = nullptr;
+    ConstantBuffer<ObjectConstants> m_ObjectConstant;
 
 	//MaterialCB
-	ComPtr<ID3D12Resource> MaterialConstantBuffer;
-	UINT8* MaterialConstantBufferMappedData = nullptr;
+    ConstantBuffer<MaterialConstants> m_MaterialConstant;
+
+
 
     void Init(ID3D12Device* device, UINT maxObjectCount);
 
